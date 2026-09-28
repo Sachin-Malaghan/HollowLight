@@ -1,0 +1,20 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.8",
+  "Category": "",
+  "Description": "HOLLOWLIGHT - a child carries a lantern through a grey, rainy forest. Side-scrolling puzzle-platformer.",
+  "DisableEnginePluginsByDefault": true,
+  "Modules": [
+    { "Name": "Hollowlight", "Type": "Runtime", "LoadingPhase": "Default" }
+  ],
+  "Plugins": [
+    { "Name": "EnhancedInput", "Enabled": true },
+    { "Name": "XInputDevice", "Enabled": true, "PlatformAllowList": [ "Win64" ] },
+    { "Name": "WindowsDeviceProfileSelector", "Enabled": true, "PlatformAllowList": [ "Win64" ] },
+    { "Name": "AndroidDeviceProfileSelector", "Enabled": true, "Optional": true, "PlatformAllowList": [ "Android" ] },
+    { "Name": "AndroidPermission", "Enabled": true, "Optional": true, "PlatformAllowList": [ "Android" ] },
+    { "Name": "ContentBrowserAssetDataSource", "Enabled": true, "TargetAllowList": [ "Editor" ] },
+    { "Name": "PluginBrowser", "Enabled": true, "Optional": true, "TargetAllowList": [ "Editor" ] }
+  ],
+  "TargetPlatforms": [ "Windows", "Android", "IOS" ]
+}
