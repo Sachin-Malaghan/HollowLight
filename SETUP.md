@@ -24,6 +24,14 @@ The installed UE 5.8 currently has **no Android or iOS platform support**.
    It installs the exact NDK and build tools this engine version expects and sets `ANDROID_HOME`/`NDKROOT`.
 3. Sign out and back in (or reboot) so the new environment variables are seen.
 
+### Two fixes this PC needed (do the same on a new machine if Gradle fails)
+- **"Unsupported class file major version 69"**: recent Android Studio ships Java 25, which Gradle 8
+  (used by UE 5.8) can't run on. Install JDK 21 (`winget install --id Microsoft.OpenJDK.21 -e --source winget`)
+  and add this line to `%USERPROFILE%\.gradle\gradle.properties`:
+  `org.gradle.java.home=C:/Program Files/Microsoft/jdk-21.0.12.101-hotspot` (adjust to the installed version).
+- **"PKIX path building failed"** while Gradle downloads: antivirus HTTPS scanning (Avast/AVG Web Shield).
+  `Tools\Build\package.ps1` handles this automatically by giving Java a trust store that includes the antivirus root.
+
 ### Build a test APK
 ```
 powershell -ExecutionPolicy Bypass -File Tools\Build\package.ps1 -Platform Android -Config Development
