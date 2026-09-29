@@ -20,6 +20,9 @@ public:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 	virtual void PlayerTick(float DeltaTime) override;
+	// The game draws its own touch pads; never create Unreal's default virtual joysticks (they would
+	// sit on top and swallow the touches meant for JUMP and pause).
+	virtual void CreateTouchInterface() override {}
 
 	bool ShouldShowTouch() const;
 	bool IsTouchDevice() const;

@@ -17,7 +17,7 @@ $out = Join-Path $root "Packaged\$Platform"
 
 $args = @(
     'BuildCookRun', "-project=$project", '-noP4', "-platform=$Platform", "-clientconfig=$Config",
-    '-build', '-cook', '-stage', '-pak', '-iostore', '-compressed', '-archive', "-archivedirectory=$out",
+    '-build', '-cook', '-stage', '-package', '-pak', '-iostore', '-compressed', '-archive', "-archivedirectory=$out",
     '-nodebuginfo', '-utf8output', '-unattended'
 )
 if ($Platform -eq 'Android') {

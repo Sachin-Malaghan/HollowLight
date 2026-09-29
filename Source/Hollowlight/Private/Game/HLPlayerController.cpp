@@ -124,6 +124,8 @@ void AHLPlayerController::BeginPlay()
 
 	if (!IsLocalController()) { return; }
 
+	ActivateTouchInterface(nullptr);   // remove any virtual joystick another path may have added
+
 	Save = Cast<UHLSaveGame>(UGameplayStatics::LoadGameFromSlot(UHLSaveGame::SlotName, 0));
 	if (!Save) { Save = Cast<UHLSaveGame>(UGameplayStatics::CreateSaveGameObject(UHLSaveGame::StaticClass())); }
 
