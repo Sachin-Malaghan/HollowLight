@@ -106,10 +106,10 @@ machine without that platform installed.
 ## Platforms
 
 - **Windows**: packages and runs (Shipping build verified with the capture script).
-- **Android**: configured (`com.sachin.hollowlight`, landscape, arm64, Vulkan + ES3.1, min SDK 26,
+- **Android**: configured (`com.brainrotinteractive.hollowlight`, landscape, arm64, Vulkan + ES3.1, min SDK 26,
   target 35, icons in `Build/Android/res`). Needs the Android target platform in the Epic launcher and
   Android Studio/SDK/NDK — see `SETUP.md`. Not yet built on this machine.
-- **iOS**: configured (`com.sachin.hollowlight`, landscape, Metal, icon in `Build/IOS/Resources`).
+- **iOS**: configured (`com.brainrotinteractive.hollowlight`, landscape, Metal, icon in `Build/IOS/Resources`).
   Needs the iOS target platform, a Mac with Xcode and an Apple Developer account — see `SETUP.md`.
 - Touch controls appear automatically on phones/tablets (Settings: Auto / On / Off), respect the
   notch safe area, and use generous hit zones. The app pauses and saves when sent to the background.

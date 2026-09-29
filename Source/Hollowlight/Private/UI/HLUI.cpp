@@ -383,7 +383,7 @@ namespace
 		S.Darken(0.7 * In);
 		FHLUI::DrawSerifWord(S.D, TEXT("HOLLOWLIGHT"), S.W * 0.5, S.H * 0.25, S.H * 0.06, S.H * 0.025, WithAlpha(Ink, In));
 		const TCHAR* Lines[] = {
-			TEXT("a game by Sachin"),
+			TEXT("a game by Brainrot Interactive Studios"),
 			TEXT(""),
 			TEXT("every tree, raindrop and sound is generated as you play"),
 			TEXT("no images, no recordings"),

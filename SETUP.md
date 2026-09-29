@@ -84,7 +84,7 @@ iOS apps can only be compiled, signed and uploaded with **Xcode on a Mac**. Two 
   `Tools\Build\package.ps1 -Platform IOS` compiles remotely.
 
 Either way you need an **Apple Developer Program** membership ($99/year). In
-*Project Settings → iOS* choose **Automatic Signing** with your team ID (bundle id `com.sachin.hollowlight`
+*Project Settings → iOS* choose **Automatic Signing** with your team ID (bundle id `com.brainrotinteractive.hollowlight`
 is already set). For the App Store: `package.ps1 -Platform IOS -Release`, upload the `.ipa` with
 Xcode's Organizer or Transporter, and in **App Store Connect** fill in the listing from `STORE_LISTING.md`,
 the privacy policy URL, and the privacy "nutrition label" (**Data Not Collected**). Test with TestFlight first.
