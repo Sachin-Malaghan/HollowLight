@@ -39,7 +39,22 @@ powershell -ExecutionPolicy Bypass -File Tools\Build\package.ps1 -Platform Andro
 The APK lands in `Packaged\Android\`. Install it with the generated `Install_Hollowlight-arm64.bat`
 (phone connected by USB, developer mode + USB debugging on).
 
-### Release build for Google Play
+### Rollout day (everything below is already prepared)
+1. Once, create the upload key yourself (you type the password; nothing is stored in git):
+   ```
+   powershell -ExecutionPolicy Bypass -File Tools\Build\create_upload_key.ps1
+   ```
+   Back up `Build\Android\hollowlight-upload.keystore` and `Config\Android\AndroidEngine.ini`.
+2. Build the signed bundle:
+   ```
+   powershell -ExecutionPolicy Bypass -File Tools\Build\package.ps1 -Platform Android -Release
+   ```
+   Upload `Packaged\Android\Hollowlight-Android-Shipping.aab` (the `_universal.apk` next to it is for your own phone).
+3. Store graphics are in `Build\Android\PlayStore\` (icon 512, feature graphic 1024x500, 8 screenshots);
+   regenerate with `Tools\Build\store_graphics.ps1` after a new capture. Text: `STORE_LISTING.md`.
+4. For every update after the first, raise `StoreVersion` (and `VersionDisplayName`) in `Config/DefaultEngine.ini`.
+
+### Release build for Google Play (reference)
 1. Create an upload key (keep it and the passwords safe and **out of git**):
    ```
    keytool -genkey -v -keystore hollowlight-upload.keystore -alias hollowlight -keyalg RSA -keysize 2048 -validity 10000

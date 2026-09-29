@@ -20,6 +20,10 @@ $args = @(
     '-build', '-cook', '-stage', '-package', '-pak', '-iostore', '-compressed', '-archive', "-archivedirectory=$out",
     '-nodebuginfo', '-utf8output', '-unattended'
 )
+if ($Platform -eq 'Android' -and $Release -and -not (Test-Path (Join-Path $root 'Config\Android\AndroidEngine.ini'))) {
+    throw 'No upload key yet. Run Tools\Build\create_upload_key.ps1 first (once), then build the release again.'
+}
+
 if ($Platform -eq 'Android') {
     # Pick up the SDK/NDK variables SetupAndroid.bat wrote, even if this shell started before it ran.
     foreach ($v in 'ANDROID_HOME', 'NDKROOT', 'NDK_ROOT', 'JAVA_HOME') {
