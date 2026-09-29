@@ -1,4 +1,4 @@
-# HOLLOWLIGHT
+# EMBERHOME
 
 A small child in a scarf carries a lantern through a grey, rainy forest. The lantern is the only warm
 colour in the world. Reach the lamp post at the end of each level to bring the light home.

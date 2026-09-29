@@ -1,4 +1,4 @@
-# HOLLOWLIGHT — setup for building and releasing
+# EMBERHOME — setup for building and releasing
 
 Windows builds work on this machine today. Android and iOS need a few one-time installs and accounts
 that only you can do (logins, licence agreements, payments). This is the list, in order.
@@ -44,7 +44,7 @@ The APK lands in `Packaged\Android\`. Install it with the generated `Install_Hol
    ```
    powershell -ExecutionPolicy Bypass -File Tools\Build\create_upload_key.ps1
    ```
-   Back up `Build\Android\hollowlight-upload.keystore` and `Config\Android\AndroidEngine.ini`.
+   Back up `Build\Android\emberhome-upload.keystore` and `Config\Android\AndroidEngine.ini`.
 2. Build the signed bundle:
    ```
    powershell -ExecutionPolicy Bypass -File Tools\Build\package.ps1 -Platform Android -Release
@@ -57,7 +57,7 @@ The APK lands in `Packaged\Android\`. Install it with the generated `Install_Hol
 ### Release build for Google Play (reference)
 1. Create an upload key (keep it and the passwords safe and **out of git**):
    ```
-   keytool -genkey -v -keystore hollowlight-upload.keystore -alias hollowlight -keyalg RSA -keysize 2048 -validity 10000
+   keytool -genkey -v -keystore emberhome-upload.keystore -alias emberhome-upload -keyalg RSA -keysize 2048 -validity 10000
    ```
    Put the keystore in `Build\Android\` and set, in the editor under *Project Settings → Android →
    Distribution Signing*, the keystore file, alias and passwords. (These end up in `Config/DefaultEngine.ini`;
@@ -84,7 +84,7 @@ iOS apps can only be compiled, signed and uploaded with **Xcode on a Mac**. Two 
   `Tools\Build\package.ps1 -Platform IOS` compiles remotely.
 
 Either way you need an **Apple Developer Program** membership ($99/year). In
-*Project Settings → iOS* choose **Automatic Signing** with your team ID (bundle id `com.brainrotinteractive.hollowlight`
+*Project Settings → iOS* choose **Automatic Signing** with your team ID (bundle id `com.brainrotinteractive.emberhome`
 is already set). For the App Store: `package.ps1 -Platform IOS -Release`, upload the `.ipa` with
 Xcode's Organizer or Transporter, and in **App Store Connect** fill in the listing from `STORE_LISTING.md`,
 the privacy policy URL, and the privacy "nutrition label" (**Data Not Collected**). Test with TestFlight first.

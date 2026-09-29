@@ -54,8 +54,8 @@ $sub = New-Object System.Drawing.Font 'Segoe UI Light', 20, ([System.Drawing.Fon
 $ink = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(0xeb, 0xe7, 0xdc))
 $dim = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(0xc8, 0xc4, 0xb8))
 $shadow = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(140, 0, 0, 0))
-Tracked $g 'HOLLOWLIGHT' $title $shadow 514 132 22
-Tracked $g 'HOLLOWLIGHT' $title $ink 512 130 22
+Tracked $g 'EMBERHOME' $title $shadow 514 132 22
+Tracked $g 'EMBERHOME' $title $ink 512 130 22
 Tracked $g 'bring the light home' $sub $dim 512 196 9
 $g.Dispose(); $img.Dispose()
 $bmp.Save((Join-Path $out 'feature-graphic-1024x500.png'), [System.Drawing.Imaging.ImageFormat]::Png)

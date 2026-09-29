@@ -1,4 +1,4 @@
-// HOLLOWLIGHT: game flow - screens, the fixed-step loop, camera, weather, progress. (CLAUDE.md: Game flow)
+// EMBERHOME: game flow - screens, the fixed-step loop, camera, weather, progress. (CLAUDE.md: Game flow)
 // Plain C++ owned by AHLPlayerController; AHLHUD draws it.
 #pragma once
 

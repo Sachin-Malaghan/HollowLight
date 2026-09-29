@@ -1,4 +1,4 @@
-// HOLLOWLIGHT: live sound synthesis. (CLAUDE.md: Audio)
+// EMBERHOME: live sound synthesis. (CLAUDE.md: Audio)
 #include "Audio/HLAudioSynth.h"
 
 using namespace HL;

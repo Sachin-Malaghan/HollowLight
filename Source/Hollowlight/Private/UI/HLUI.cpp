@@ -1,4 +1,4 @@
-// HOLLOWLIGHT: menus, HUD overlay, touch controls and the procedural serif title. (CLAUDE.md: UI)
+// EMBERHOME: menus, HUD overlay, touch controls and the procedural serif title. (CLAUDE.md: UI)
 #include "UI/HLUI.h"
 
 #include "Core/HLLevel.h"
@@ -103,6 +103,10 @@ namespace
 		case 'T': return 0.68;
 		case 'V': return 0.66;
 		case 'X': return 0.66;
+		case 'E': return 0.58;
+		case 'M': return 0.86;
+		case 'B': return 0.62;
+		case 'R': return 0.64;
 		default: return 0.40;
 		}
 	}
@@ -201,6 +205,35 @@ namespace
 			G.Bar(-0.04, 0.97, 0.18, 1.0); G.Bar(0.50, 0.97, 0.70, 1.0);
 			G.Bar(-0.04, 0.0, 0.18, 0.03); G.Bar(0.48, 0.0, 0.70, 0.03);
 			break;
+		case 'E':
+			G.Stem(0.10);
+			G.Bar(0.10, 0.97, 0.52, 1.0); G.Bar(0.49, 0.84, 0.52, 1.0);     // top arm + beak serif
+			G.Bar(0.10, 0.50, 0.44, 0.53); G.Bar(0.41, 0.43, 0.44, 0.60);   // middle arm
+			G.Bar(0.10, 0.0, 0.54, 0.03); G.Bar(0.51, 0.0, 0.54, 0.17);     // bottom arm + beak serif
+			G.Bar(0.0, 0.97, 0.12, 1.0); G.Bar(0.0, 0.0, 0.12, 0.03);
+			break;
+		case 'M':
+			G.Stroke(0.08, 0.0, 0.08, 1.0, G.Thin() * 1.3);                // thin left stem
+			G.Stroke(0.08, 1.0, 0.43, 0.02, G.Thick());                    // thick diagonal down
+			G.Stroke(0.43, 0.02, 0.76, 1.0, G.Thin() * 1.3);               // thin diagonal up
+			G.Stem(0.76);                                                 // thick right stem
+			G.Bar(-0.02, 0.0, 0.18, 0.03); G.Bar(0.66, 0.0, 0.86, 0.03);
+			G.Bar(-0.02, 0.97, 0.10, 1.0); G.Serif(0.76, 1);
+			break;
+		case 'B':
+			G.Stem(0.10);
+			G.Bar(0.10, 0.97, 0.36, 1.0); G.Bar(0.10, 0.49, 0.37, 0.52); G.Bar(0.10, 0.0, 0.37, 0.03);
+			G.Bowl(0.36, 0.755, 0.20, 0.245, -90, 90);
+			G.Bowl(0.37, 0.255, 0.24, 0.255, -90, 90);
+			G.Bar(0.0, 0.97, 0.12, 1.0); G.Bar(0.0, 0.0, 0.12, 0.03);
+			break;
+		case 'R':
+			G.Stem(0.10);
+			G.Bar(0.10, 0.97, 0.36, 1.0); G.Bar(0.10, 0.475, 0.36, 0.505);
+			G.Bowl(0.36, 0.7375, 0.21, 0.2625, -90, 90);
+			G.Stroke(0.33, 0.49, 0.58, 0.015, G.Thick());                  // leg
+			G.Bar(0.0, 0.97, 0.12, 1.0); G.Bar(0.0, 0.0, 0.20, 0.03); G.Bar(0.50, 0.0, 0.66, 0.03);
+			break;
 		default:
 			break;
 		}
@@ -274,7 +307,7 @@ namespace
 		S.D.RectV(0, S.H * 0.42, S.W, S.H * 0.62, FLinearColor(0, 0, 0, (float)(0.22 * In)), FLinearColor(0, 0, 0, 0));
 
 		const double TitleH = S.H * 0.085;
-		FHLUI::DrawSerifWord(S.D, TEXT("HOLLOWLIGHT"), S.W * 0.5, S.H * 0.36, TitleH, TitleH * 0.42, WithAlpha(Ink, In));
+		FHLUI::DrawSerifWord(S.D, TEXT("EMBERHOME"), S.W * 0.5, S.H * 0.36, TitleH, TitleH * 0.42, WithAlpha(Ink, In));
 		S.Text.Draw(TEXT("bring the light home"), S.W * 0.5, S.H * 0.36 + TitleH * 0.75, S.H * 0.026, WithAlpha(Dim, In), 0.5, 420);
 
 		const double Px = S.H * 0.036;
@@ -381,7 +414,7 @@ namespace
 		FHLGame& G = S.Game;
 		const double In = SmoothStep(0.0, 0.35, G.ScreenTime);
 		S.Darken(0.7 * In);
-		FHLUI::DrawSerifWord(S.D, TEXT("HOLLOWLIGHT"), S.W * 0.5, S.H * 0.25, S.H * 0.06, S.H * 0.025, WithAlpha(Ink, In));
+		FHLUI::DrawSerifWord(S.D, TEXT("EMBERHOME"), S.W * 0.5, S.H * 0.25, S.H * 0.06, S.H * 0.025, WithAlpha(Ink, In));
 		const TCHAR* Lines[] = {
 			TEXT("a game by Brainrot Interactive Studios"),
 			TEXT(""),

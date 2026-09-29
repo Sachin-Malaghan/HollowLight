@@ -1,4 +1,4 @@
-# Builds and runs the standalone HOLLOWLIGHT sim harness with MSVC (no Unreal needed).
+# Builds and runs the standalone EMBERHOME sim harness with MSVC (no Unreal needed).
 param([int]$Level = 0, [switch]$Trace)
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path "$PSScriptRoot\..\.."

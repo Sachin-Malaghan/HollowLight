@@ -1,17 +1,17 @@
-# Creates the Google Play UPLOAD KEY for HOLLOWLIGHT. Run it once, yourself, in a PowerShell window:
+# Creates the Google Play UPLOAD KEY for EMBERHOME. Run it once, yourself, in a PowerShell window:
 #   powershell -ExecutionPolicy Bypass -File Tools\Build\create_upload_key.ps1
 #
 # You choose the password; it is never shown or sent anywhere. The script writes:
-#   Build/Android/hollowlight-upload.keystore   the key (git-ignored)
+#   Build/Android/emberhome-upload.keystore   the key (git-ignored)
 #   Config/Android/AndroidEngine.ini            tells Unreal to sign releases with it (git-ignored)
 #
 # BACK BOTH UP (e.g. to a USB stick and a private cloud folder) and remember the password.
 # If you lose them, Google can reset the upload key, but it takes days and a support request.
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path "$PSScriptRoot\..\.."
-$keystore = Join-Path $root 'Build\Android\hollowlight-upload.keystore'
+$keystore = Join-Path $root 'Build\Android\emberhome-upload.keystore'
 $ini = Join-Path $root 'Config\Android\AndroidEngine.ini'
-$alias = 'hollowlight-upload'
+$alias = 'emberhome-upload'
 
 if (Test-Path $keystore) {
     Write-Host "An upload key already exists: $keystore"
@@ -47,7 +47,7 @@ New-Item -ItemType Directory -Force (Split-Path $ini) | Out-Null
 Set-Content -Path $ini -Encoding ascii -Value @"
 ; Release signing for Google Play. Local only - git-ignored. Do not share or commit.
 [/Script/AndroidRuntimeSettings.AndroidRuntimeSettings]
-KeyStore=hollowlight-upload.keystore
+KeyStore=emberhome-upload.keystore
 KeyAlias=$alias
 KeyStorePassword=$plain1
 KeyPassword=

@@ -1,4 +1,4 @@
-// HOLLOWLIGHT core: attract-mode autopilot. (CLAUDE.md: Core / autopilot)
+// EMBERHOME core: attract-mode autopilot. (CLAUDE.md: Core / autopilot)
 // A simple heuristic (run right; jump at pit edges, just before traps and when blocked) checked by
 // looking ahead: the sim is cloned and run forward, and if the heuristic would die the autopilot
 // waits, backs off or jumps instead - which is also how it times the swinging logs and boughs.

@@ -2,7 +2,7 @@
   "FileVersion": 3,
   "EngineAssociation": "5.8",
   "Category": "",
-  "Description": "HOLLOWLIGHT - a child carries a lantern through a grey, rainy forest. Side-scrolling puzzle-platformer.",
+  "Description": "EMBERHOME - a child carries a lantern through a grey, rainy forest. Side-scrolling puzzle-platformer.",
   "DisableEnginePluginsByDefault": true,
   "Modules": [
     { "Name": "Hollowlight", "Type": "Runtime", "LoadingPhase": "Default" }

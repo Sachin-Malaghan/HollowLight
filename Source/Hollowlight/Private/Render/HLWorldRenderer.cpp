@@ -1,4 +1,4 @@
-// HOLLOWLIGHT: procedural world renderer. (CLAUDE.md: Rendering)
+// EMBERHOME: procedural world renderer. (CLAUDE.md: Rendering)
 #include "Render/HLWorldRenderer.h"
 
 #include "Render/HLDraw.h"

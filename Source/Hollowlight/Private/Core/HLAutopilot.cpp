@@ -1,4 +1,4 @@
-// HOLLOWLIGHT core: attract-mode autopilot. (CLAUDE.md: Core / autopilot)
+// EMBERHOME core: attract-mode autopilot. (CLAUDE.md: Core / autopilot)
 #include "HLAutopilot.h"
 
 #include <cmath>

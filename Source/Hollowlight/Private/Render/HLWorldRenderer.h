@@ -1,4 +1,4 @@
-// HOLLOWLIGHT: draws the world - sky, parallax forest, fog, the play layer, rain, the lantern's light,
+// EMBERHOME: draws the world - sky, parallax forest, fog, the play layer, rain, the lantern's light,
 // vignette and film grain - entirely from procedural shapes. (CLAUDE.md: Rendering)
 #pragma once
 

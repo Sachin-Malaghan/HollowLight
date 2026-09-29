@@ -1,4 +1,4 @@
-// HOLLOWLIGHT: saved progress and settings (one slot, all platforms). (CLAUDE.md: Game flow)
+// EMBERHOME: saved progress and settings (one slot, all platforms). (CLAUDE.md: Game flow)
 #pragma once
 
 #include "CoreMinimal.h"

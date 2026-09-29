@@ -1,4 +1,4 @@
-# Draws the HOLLOWLIGHT app icon (the child with the lantern, in the game's style) and writes every size
+# Draws the EMBERHOME app icon (the child with the lantern, in the game's style) and writes every size
 # Android, iOS and the website need. Re-run after changing the design; output is committed.
 Add-Type -AssemblyName System.Drawing
 $root = Resolve-Path "$PSScriptRoot\..\.."

@@ -1,4 +1,4 @@
-// HOLLOWLIGHT: batched 2D triangle drawing on a UCanvas. (CLAUDE.md: Rendering)
+// EMBERHOME: batched 2D triangle drawing on a UCanvas. (CLAUDE.md: Rendering)
 // Everything in the game is drawn from these primitives - no textures except the grain tile.
 #pragma once
 

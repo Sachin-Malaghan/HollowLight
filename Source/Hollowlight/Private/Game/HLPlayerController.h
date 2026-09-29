@@ -1,4 +1,4 @@
-// HOLLOWLIGHT: owns the game flow; gathers keyboard, gamepad, mouse and multi-touch input. (CLAUDE.md: Game flow / Input)
+// EMBERHOME: owns the game flow; gathers keyboard, gamepad, mouse and multi-touch input. (CLAUDE.md: Game flow / Input)
 #pragma once
 
 #include "CoreMinimal.h"

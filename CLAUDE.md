@@ -1,4 +1,4 @@
-# HOLLOWLIGHT — instructions for Claude Code
+# EMBERHOME — instructions for Claude Code
 
 Read this file in full before changing anything. It is the standing spec for the project.
 
@@ -7,6 +7,12 @@ Read this file in full before changing anything. It is the standing spec for the
 A side-scrolling puzzle-platformer in Unreal Engine 5.8 (C++), for Android, iOS and Windows, with a
 static marketing website. A small child in a scarf carries a lantern through a grey, rainy forest;
 the lantern is the only warm colour in the world. Ten levels; reach the lamp post to "bring the light home".
+
+**Names.** The game is called **EMBERHOME** (renamed from HOLLOWLIGHT on 2026-09-29 because that name
+was already taken on Google Play and the App Store). Everything players see says EMBERHOME; the app id is
+`com.brainrotinteractive.emberhome`, publisher Brainrot Interactive Studios. The internal code name is
+still `Hollowlight` (folder, .uproject, module, `HL` class prefix, save slot, packaged file names) —
+invisible to players and deliberately not renamed.
 
 The original design brief was a single-file HTML5 canvas game. The user chose Unreal instead
 (2026-09-28). The brief's art direction, physics numbers, level 1 layout and attract mode are kept
@@ -106,10 +112,10 @@ machine without that platform installed.
 ## Platforms
 
 - **Windows**: packages and runs (Shipping build verified with the capture script).
-- **Android**: configured (`com.brainrotinteractive.hollowlight`, landscape, arm64, Vulkan + ES3.1, min SDK 26,
+- **Android**: configured (`com.brainrotinteractive.emberhome`, landscape, arm64, Vulkan + ES3.1, min SDK 26,
   target 35, icons in `Build/Android/res`). Needs the Android target platform in the Epic launcher and
   Android Studio/SDK/NDK — see `SETUP.md`. Not yet built on this machine.
-- **iOS**: configured (`com.brainrotinteractive.hollowlight`, landscape, Metal, icon in `Build/IOS/Resources`).
+- **iOS**: configured (`com.brainrotinteractive.emberhome`, landscape, Metal, icon in `Build/IOS/Resources`).
   Needs the iOS target platform, a Mac with Xcode and an Apple Developer account — see `SETUP.md`.
 - Touch controls appear automatically on phones/tablets (Settings: Auto / On / Off), respect the
   notch safe area, and use generous hit zones. The app pauses and saves when sent to the background.

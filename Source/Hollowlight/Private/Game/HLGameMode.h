@@ -1,4 +1,4 @@
-// HOLLOWLIGHT: wires the controller and HUD; there is no pawn - the child lives in the 2D sim. (CLAUDE.md: Architecture)
+// EMBERHOME: wires the controller and HUD; there is no pawn - the child lives in the 2D sim. (CLAUDE.md: Architecture)
 #pragma once
 
 #include "CoreMinimal.h"

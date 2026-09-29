@@ -1,4 +1,4 @@
-// HOLLOWLIGHT: game flow. (CLAUDE.md: Game flow)
+// EMBERHOME: game flow. (CLAUDE.md: Game flow)
 #include "Game/HLGame.h"
 
 #include "Game/HLSaveGame.h"

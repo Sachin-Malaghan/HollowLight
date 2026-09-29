@@ -1,4 +1,4 @@
-// HOLLOWLIGHT: input, lifecycle, console commands and the capture script. (CLAUDE.md: Game flow / Input)
+// EMBERHOME: input, lifecycle, console commands and the capture script. (CLAUDE.md: Game flow / Input)
 #include "Game/HLPlayerController.h"
 
 #include "Audio/HLAudioSynth.h"

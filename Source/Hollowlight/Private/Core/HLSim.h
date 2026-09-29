@@ -1,4 +1,4 @@
-// HOLLOWLIGHT core: deterministic fixed-step simulation of one level. (CLAUDE.md: Core / simulation)
+// EMBERHOME core: deterministic fixed-step simulation of one level. (CLAUDE.md: Core / simulation)
 // Copyable by value: the autopilot clones it to look ahead.
 #pragma once
 

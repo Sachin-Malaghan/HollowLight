@@ -1,4 +1,4 @@
-// Standalone check of the HOLLOWLIGHT core outside Unreal: the autopilot plays every level.
+// Standalone check of the EMBERHOME core outside Unreal: the autopilot plays every level.
 // Build + run: powershell -ExecutionPolicy Bypass -File Tools\SimHarness\run.ps1 [-Level N] [-Trace]
 #include "../../Source/Hollowlight/Private/Core/HLAutopilot.h"
 #include "../../Source/Hollowlight/Private/Core/HLLevel.h"

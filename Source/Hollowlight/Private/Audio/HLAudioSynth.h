@@ -1,4 +1,4 @@
-// HOLLOWLIGHT: all sound is synthesised live - rain, wind, footsteps, traps, a sparse ambient score.
+// EMBERHOME: all sound is synthesised live - rain, wind, footsteps, traps, a sparse ambient score.
 // No audio files. (CLAUDE.md: Audio)
 #pragma once
 

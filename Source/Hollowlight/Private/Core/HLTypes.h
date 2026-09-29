@@ -1,4 +1,4 @@
-// HOLLOWLIGHT core: engine-agnostic constants and small math. (CLAUDE.md: Core / simulation)
+// EMBERHOME core: engine-agnostic constants and small math. (CLAUDE.md: Core / simulation)
 // Nothing under Private/Core may include Unreal headers; the same files build the standalone
 // harness in Tools/SimHarness so levels and the autopilot can be verified outside the engine.
 #pragma once

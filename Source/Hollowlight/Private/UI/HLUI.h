@@ -1,4 +1,4 @@
-// HOLLOWLIGHT: menus, HUD overlay, touch controls and the procedural serif title. (CLAUDE.md: UI)
+// EMBERHOME: menus, HUD overlay, touch controls and the procedural serif title. (CLAUDE.md: UI)
 #pragma once
 
 #include "CoreMinimal.h"

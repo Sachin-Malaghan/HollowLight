@@ -1,6 +1,6 @@
-# Game playbook — how HOLLOWLIGHT was built, from idea to Play Store
+# Game playbook — how EMBERHOME was built, from idea to Play Store
 
-A reusable recipe for building the next game the same way. Written from the real build of HOLLOWLIGHT
+A reusable recipe for building the next game the same way. Written from the real build of EMBERHOME
 (`C:\SACHIN\Hollowlight`, https://github.com/Sachin-Malaghan/HollowLight). Read it in full before
 starting a new game; follow the order; reuse the tools and fixes rather than rediscovering them.
 
@@ -27,7 +27,7 @@ iOS needs a Mac + Xcode + Apple Developer account — not available yet. Configu
 Ask/settle these before writing code (they change everything):
 - **Engine & targets.** Unreal (C++) for Android + iOS + Windows. Unreal can't export to the web, so the
   website is a landing page, not a playable build.
-- **Art direction that suits procedural drawing.** HOLLOWLIGHT is 2D silhouettes, gradients and glows, so it
+- **Art direction that suits procedural drawing.** EMBERHOME is 2D silhouettes, gradients and glows, so it
   needed zero imported assets. If the new game needs 3D meshes/textures, budget for an asset pipeline
   (Blender scripts / Python import) instead of the canvas approach below.
 - **New folder, new git repo** per game (e.g. `C:\SACHIN\<GameName>`), never inside another project.
@@ -110,7 +110,7 @@ visual change — several real bugs were only visible in them.
 # package
 powershell -ExecutionPolicy Bypass -File Tools\Build\package.ps1 -Platform Win64|Android [-Config Development|Shipping] [-Release]
 ```
-Copy `Tools/` from HOLLOWLIGHT and rename — the scripts are generic apart from the project name.
+Copy `Tools/` from EMBERHOME and rename — the scripts are generic apart from the project name.
 
 ---
 
@@ -184,7 +184,7 @@ Uninstall the old app first when the package name changes.
 
 ## 9. Release: Google Play
 
-Prepared in HOLLOWLIGHT (copy the same files):
+Prepared in EMBERHOME (copy the same files):
 - `Tools/Build/create_upload_key.ps1` — the **owner** runs it and types the password; writes
   `Build/Android/<game>-upload.keystore` and `Config/Android/AndroidEngine.ini` (both git-ignored). Back both up.
 - `package.ps1 -Platform Android -Release` → signed `.aab` (refuses to run without the key).

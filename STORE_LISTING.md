@@ -1,9 +1,9 @@
-# HOLLOWLIGHT — store listing copy
+# EMBERHOME — store listing copy
 
 Ready to paste into Google Play Console and App Store Connect. Screenshots come from
 `Tools\Validation\capture.ps1` (desktop 16:9) and `capture.ps1 -Phone` (19.5:9).
 
-**App name:** HOLLOWLIGHT
+**App name:** EMBERHOME
 **Subtitle (App Store, 30 max):** Bring the light home
 **Short description (Google Play, 80 max):** A child, a lantern, a grey and rainy wood. Ten quiet levels. Bring the light home.
 

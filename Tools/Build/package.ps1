@@ -1,4 +1,4 @@
-# Packages HOLLOWLIGHT with Unreal's BuildCookRun.
+# Packages EMBERHOME with Unreal's BuildCookRun.
 #   powershell -ExecutionPolicy Bypass -File Tools\Build\package.ps1 -Platform Win64
 #   powershell -ExecutionPolicy Bypass -File Tools\Build\package.ps1 -Platform Android            # needs Android Studio + SDK/NDK (SETUP.md)
 #   powershell -ExecutionPolicy Bypass -File Tools\Build\package.ps1 -Platform Android -Release   # signed .aab for Google Play

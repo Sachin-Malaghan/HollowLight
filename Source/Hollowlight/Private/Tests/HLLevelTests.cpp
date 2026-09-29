@@ -1,4 +1,4 @@
-// HOLLOWLIGHT: automation tests - every level (and every checkpoint start) can be finished,
+// EMBERHOME: automation tests - every level (and every checkpoint start) can be finished,
 // and the core physics rules from the spec hold. (CLAUDE.md: Testing)
 #include "Misc/AutomationTest.h"
 

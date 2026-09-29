@@ -1,4 +1,4 @@
-// HOLLOWLIGHT core: level definitions (data only). (CLAUDE.md: Core / levels)
+// EMBERHOME core: level definitions (data only). (CLAUDE.md: Core / levels)
 #pragma once
 
 #include "HLTypes.h"

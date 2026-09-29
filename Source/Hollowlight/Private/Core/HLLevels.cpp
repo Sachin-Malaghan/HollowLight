@@ -1,4 +1,4 @@
-// HOLLOWLIGHT core: the ten levels. (CLAUDE.md: Levels)
+// EMBERHOME core: the ten levels. (CLAUDE.md: Levels)
 // Units: the screen shows 400 units of height, ground top at y = 300, y grows downward.
 // Reach at full run: a full jump rises ~104 and carries ~179 horizontally.
 // Every level is verified by the autopilot (Tools/SimHarness, test Hollowlight.Levels.AutopilotFinishes).

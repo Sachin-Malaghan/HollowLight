@@ -1,4 +1,4 @@
-// HOLLOWLIGHT: paints the whole game onto the canvas each frame. (CLAUDE.md: Rendering / UI)
+// EMBERHOME: paints the whole game onto the canvas each frame. (CLAUDE.md: Rendering / UI)
 #include "Game/HLHUD.h"
 
 #include "Engine/Canvas.h"

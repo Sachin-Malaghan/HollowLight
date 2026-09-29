@@ -1,4 +1,4 @@
-// HOLLOWLIGHT: game mode. (CLAUDE.md: Architecture)
+// EMBERHOME: game mode. (CLAUDE.md: Architecture)
 #include "Game/HLGameMode.h"
 
 #include "Game/HLHUD.h"

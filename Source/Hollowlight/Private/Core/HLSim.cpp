@@ -1,4 +1,4 @@
-// HOLLOWLIGHT core: deterministic fixed-step simulation. (CLAUDE.md: Core / simulation)
+// EMBERHOME core: deterministic fixed-step simulation. (CLAUDE.md: Core / simulation)
 #include "HLSim.h"
 
 #include <algorithm>
