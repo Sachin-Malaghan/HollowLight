@@ -57,6 +57,8 @@ void AHLHUD::DrawHUD()
 		Ctx.bLeftDown = PC->bTouchLeft;
 		Ctx.bRightDown = PC->bTouchRight;
 		Ctx.bJumpDown = PC->bTouchJump;
+		Ctx.bMenuTouchDown = PC->bMenuTouchDown;
+		Ctx.MenuTouch = PC->MenuTouch;
 		Ctx.Safe = PC->SafeArea;
 		FHLUI::Draw(D, Canvas, Game, Ctx);
 	}

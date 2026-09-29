@@ -34,6 +34,8 @@ public:
 
 	// Read by the HUD.
 	bool bTouchLeft = false, bTouchRight = false, bTouchJump = false;
+	bool bMenuTouchDown = false;
+	FVector2D MenuTouch = FVector2D::ZeroVector;
 	FVector4 SafeArea = FVector4(0, 0, 0, 0);
 	bool bForceTouch = false;
 

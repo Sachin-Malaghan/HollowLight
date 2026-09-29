@@ -591,5 +591,15 @@ void FHLUI::Draw(FHLDraw& D, UCanvas* Canvas, FHLGame& Game, const FHLUiContext&
 	case EHLScreen::Ending: DrawResults(S, true); break;
 	}
 	Game.Focus = FMath::Clamp(Game.Focus, 0, FMath::Max(0, Game.Buttons.Num() - 1));
+
+	// Touch feedback: a faint ring under the finger on menus and the pause button.
+	if (Ctx.bMenuTouchDown)
+	{
+		D.SetTransform(1, 0, 0);
+		D.SetBlend(SE_BLEND_Translucent);
+		const double R = D.ScreenH * 0.035;
+		D.Ring(Ctx.MenuTouch.X, Ctx.MenuTouch.Y, R * 0.8, R, FLinearColor(1, 1, 1, 0.45f), FLinearColor(1, 1, 1, 0.45f), 32);
+		D.Circle(Ctx.MenuTouch.X, Ctx.MenuTouch.Y, R * 0.8, FLinearColor(1, 1, 1, 0.08f), 24);
+	}
 	D.Flush();
 }

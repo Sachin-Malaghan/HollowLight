@@ -256,6 +256,7 @@ void AHLPlayerController::GatherInput(FHLControls& Controls, FHLMenuInput& Menu)
 	const FHLTouchLayout Layout = FHLTouchLayout::Compute(VX, VY, SafeArea);
 	const bool bControls = Game.IsGameplay() && ShouldShowTouch();
 	bTouchLeft = bTouchRight = bTouchJump = false;
+	bMenuTouchDown = false;
 	for (int32 I = 0; I < MaxTouches; ++I)
 	{
 		double X = 0, Y = 0;
@@ -280,6 +281,8 @@ void AHLPlayerController::GatherInput(FHLControls& Controls, FHLMenuInput& Menu)
 			}
 			else if (!TouchIsControl[I])
 			{
+				bMenuTouchDown = true;
+				MenuTouch = P;
 				Menu.bPointerValid = true;
 				Menu.Pointer = P;
 				Menu.bPointerMoved = true;

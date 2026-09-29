@@ -26,6 +26,8 @@ struct FHLUiContext
 	bool bShowTouch = false;
 	bool bTouchDevice = false;
 	bool bLeftDown = false, bRightDown = false, bJumpDown = false;
+	bool bMenuTouchDown = false;               // a finger is on the screen outside the control pads
+	FVector2D MenuTouch = FVector2D::ZeroVector;
 	FVector4 Safe = FVector4(0, 0, 0, 0);   // left, top, right, bottom insets (pixels)
 };
 
