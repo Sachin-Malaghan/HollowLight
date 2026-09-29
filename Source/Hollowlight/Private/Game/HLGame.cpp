@@ -248,6 +248,14 @@ void FHLGame::Back()
 		ReturnScreen = EHLScreen::Title;
 		GoTo(EHLScreen::LevelSelect);
 		break;
+	case EHLScreen::Title:
+		// Android convention: Back on the first screen leaves the app. (Esc on desktop does nothing
+		// here, so a stray key press can't close the game; use the QUIT button.)
+#if PLATFORM_ANDROID
+		SaveProgress();
+		bQuitRequested = true;
+#endif
+		return;
 	default:
 		return;
 	}
@@ -319,6 +327,10 @@ void FHLGame::Activate(const FHLButton& B)
 	case EHLAction::ToggleFlashing:
 		Save->bReduceFlashing = !Save->bReduceFlashing;
 		SaveProgress();
+		break;
+	case EHLAction::Quit:
+		SaveProgress();
+		bQuitRequested = true;
 		break;
 	case EHLAction::Pause:
 		GoTo(EHLScreen::Paused);

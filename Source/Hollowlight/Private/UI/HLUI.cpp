@@ -283,6 +283,10 @@ namespace
 		S.Button(bStarted ? TEXT("CONTINUE") : TEXT("PLAY"), S.W * 0.5, Y0, Px * 1.15, EHLAction::Play, 0, true, In);
 		S.Button(TEXT("LEVELS"), S.W * 0.5, Y0 + S.H * 0.095, Px, EHLAction::Levels, 0, true, In);
 		S.Button(TEXT("SETTINGS"), S.W * 0.5, Y0 + S.H * 0.18, Px, EHLAction::Settings, 0, true, In);
+		if (FHLGame::PlatformHasQuitButton())
+		{
+			S.Button(TEXT("QUIT"), S.W * 0.5, Y0 + S.H * 0.265, Px, EHLAction::Quit, 0, true, In);
+		}
 
 		S.Text.Draw(ControlsHint(S.Ctx), S.W * 0.5, S.H - S.SafeB() - S.H * 0.05, S.H * 0.022, WithAlpha(Dim, In * 0.9), 0.5, 120);
 		if (bStarted)

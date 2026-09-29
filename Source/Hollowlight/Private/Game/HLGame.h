@@ -17,7 +17,7 @@ enum class EHLAction : uint8
 {
 	None, Play, Levels, Settings, Credits, Back, SelectLevel, Resume, RestartCheckpoint, RestartLevel,
 	QuitToTitle, NextLevel, Replay, ToggleMusic, ToggleSound, CycleTouch, ToggleGrain, ToggleFlashing,
-	Pause, PlayAgain
+	Pause, PlayAgain, Quit
 };
 
 enum class EHLUiSound : uint8 { Move, Select, Back };
@@ -108,6 +108,10 @@ public:
 	bool bAutopilotInPlay = false;
 	bool bNoSave = false;
 	bool bHideUI = false;
+
+	// Set by the QUIT button (desktop) or Back on the title screen (Android); the controller closes the app.
+	bool bQuitRequested = false;
+	static bool PlatformHasQuitButton() { return !(PLATFORM_ANDROID || PLATFORM_IOS); }
 
 private:
 	void StepWorld(double Dt, const FHLControls& Controls);

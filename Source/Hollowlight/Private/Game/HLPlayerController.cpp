@@ -9,6 +9,7 @@
 #include "GenericPlatform/GenericApplication.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Misc/CommandLine.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/Parse.h"
@@ -319,6 +320,12 @@ void AHLPlayerController::PlayerTick(float DeltaTime)
 		TickCapture(DeltaTime);
 	}
 	Game.Tick(DeltaTime, Controls, Menu, Size.X, Size.Y);
+
+	if (Game.bQuitRequested)
+	{
+		Game.bQuitRequested = false;
+		UKismetSystemLibrary::QuitGame(this, this, EQuitPreference::Quit, false);
+	}
 }
 
 void AHLPlayerController::TickCapture(float DeltaTime)
