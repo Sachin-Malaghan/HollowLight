@@ -405,7 +405,8 @@ namespace
 		S.Button(FString::Printf(TEXT("TOUCH CONTROLS   %s"), Touch), S.W * 0.5, Y + Step * 2, Px, EHLAction::CycleTouch, 0, true, In);
 		S.Button(FString::Printf(TEXT("FILM GRAIN   %s"), OnOff(Sv->bFilmGrain)), S.W * 0.5, Y + Step * 3, Px, EHLAction::ToggleGrain, 0, true, In);
 		S.Button(FString::Printf(TEXT("REDUCE FLASHING   %s"), OnOff(Sv->bReduceFlashing)), S.W * 0.5, Y + Step * 4, Px, EHLAction::ToggleFlashing, 0, true, In);
-		S.Button(TEXT("CREDITS"), S.W * 0.5, Y + Step * 5.2, Px, EHLAction::Credits, 0, true, In);
+		S.Button(TEXT("PRIVACY POLICY"), S.W * 0.5, Y + Step * 5.2, Px, EHLAction::PrivacyPolicy, 0, true, In);
+		S.Button(TEXT("CREDITS"), S.W * 0.5, Y + Step * 6.1, Px, EHLAction::Credits, 0, true, In);
 		DrawBack(S, In);
 	}
 

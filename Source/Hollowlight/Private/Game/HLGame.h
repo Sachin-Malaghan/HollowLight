@@ -17,7 +17,7 @@ enum class EHLAction : uint8
 {
 	None, Play, Levels, Settings, Credits, Back, SelectLevel, Resume, RestartCheckpoint, RestartLevel,
 	QuitToTitle, NextLevel, Replay, ToggleMusic, ToggleSound, CycleTouch, ToggleGrain, ToggleFlashing,
-	Pause, PlayAgain, Quit
+	Pause, PlayAgain, Quit, PrivacyPolicy
 };
 
 enum class EHLUiSound : uint8 { Move, Select, Back };

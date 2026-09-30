@@ -2,6 +2,7 @@
 #include "Game/HLGame.h"
 
 #include "Game/HLSaveGame.h"
+#include "HAL/PlatformProcess.h"
 #include "Kismet/GameplayStatics.h"
 
 using namespace HL;
@@ -327,6 +328,10 @@ void FHLGame::Activate(const FHLButton& B)
 	case EHLAction::ToggleFlashing:
 		Save->bReduceFlashing = !Save->bReduceFlashing;
 		SaveProgress();
+		break;
+	case EHLAction::PrivacyPolicy:
+		// Store policy: the privacy policy must be reachable from inside the app.
+		FPlatformProcess::LaunchURL(TEXT("https://sachin-malaghan.github.io/HollowLight/privacy.html"), nullptr, nullptr);
 		break;
 	case EHLAction::Quit:
 		SaveProgress();
