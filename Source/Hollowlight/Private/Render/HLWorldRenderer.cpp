@@ -62,6 +62,61 @@ namespace
 	{
 		return 1.0 + 0.055 * FMath::Sin(T * 13.1) + 0.035 * FMath::Sin(T * 7.3 + 1.2) + 0.025 * FMath::Sin(T * 23.7 + 0.4);
 	}
+
+	// The sim walks a slope as stair-steps; what is drawn stands on the hillside line itself.
+	bool SlopeAt(const FLevelDef& L, double X, double NearY, double& OutY, double& OutAngle)
+	{
+		for (const FSlopeDef& Sl : L.Slopes)
+		{
+			if (X < Sl.X0 || X > Sl.X1) { continue; }
+			const double Y = FMath::Lerp(Sl.Y0, Sl.Y1, (X - Sl.X0) / (Sl.X1 - Sl.X0));
+			if (FMath::Abs(Y - NearY) < 14.0)
+			{
+				OutY = Y;
+				OutAngle = FMath::Atan2(Sl.Y1 - Sl.Y0, Sl.X1 - Sl.X0);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// Height of the ground under a paw at X, for a body standing at about NearY.
+	double PawGround(const FSim& S, double X, double NearY)
+	{
+		double Y = 0, A = 0;
+		if (SlopeAt(*S.Level, X, NearY, Y, A)) { return Y; }
+		const double G = S.SurfaceAt(X, NearY - 9.0);
+		return FMath::Abs(G - NearY) < 9.0 ? G : NearY;
+	}
+
+	// Two-bone limb from A to B (B is pulled in if out of reach): returns the middle joint.
+	// Bend picks the side the joint folds toward.
+	FVector2D LimbJoint(const FVector2D& A, FVector2D& B, double L1, double L2, double Bend)
+	{
+		FVector2D D = B - A;
+		double Len = D.Size();
+		if (Len < 0.01) { D = FVector2D(0, 1); Len = 0.01; }
+		const FVector2D Dir = D / Len;
+		const double Reach = FMath::Clamp(Len, FMath::Abs(L1 - L2) + 0.05, L1 + L2 - 0.05);
+		B = A + Dir * Reach;
+		const double K = (L1 * L1 - L2 * L2 + Reach * Reach) / (2.0 * Reach);
+		const double H = FMath::Sqrt(FMath::Max(0.0, L1 * L1 - K * K));
+		return A + Dir * K + FVector2D(-Dir.Y, Dir.X) * (H * Bend);
+	}
+
+	FVector2D Rotated(const FVector2D& P, const FVector2D& Pivot, double Angle)
+	{
+		const FVector2D R = P - Pivot;
+		const double C = FMath::Cos(Angle), Sn = FMath::Sin(Angle);
+		return Pivot + FVector2D(R.X * C - R.Y * Sn, R.X * Sn + R.Y * C);
+	}
+
+	// Lying back in a slide on a hillside, the body follows the slope.
+	double SlideTilt(const FSim& S, double X, double Y)
+	{
+		double LineY = 0, Angle = 0;
+		return (S.P.Pose == EPose::Slide && SlopeAt(*S.Level, X, Y, LineY, Angle)) ? Angle : 0.0;
+	}
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -100,7 +155,7 @@ FVector2D FHLWorldRenderer::LanternPos(const FSim& Sim, double PlayerX, double P
 	{
 		switch (P.Pose)
 		{
-		case EPose::Slide: return FVector2D(PlayerX - P.Facing * 2.0, PlayerY - 21.0);     // held up clear of the ground
+		case EPose::Slide: return Rotated(FVector2D(PlayerX - P.Facing * 2.0, PlayerY - 21.0), FVector2D(PlayerX, PlayerY), SlideTilt(Sim, PlayerX, PlayerY));   // held up clear of the ground
 		case EPose::Crouch:
 		case EPose::Stunned: return FVector2D(PlayerX + P.Facing * 9.0, PlayerY - 8.0);
 		case EPose::Roll: return FVector2D(PlayerX, PlayerY - 11.0);
@@ -113,9 +168,19 @@ FVector2D FHLWorldRenderer::LanternPos(const FSim& Sim, double PlayerX, double P
 	return FVector2D(PlayerX + P.Facing * 10.5, PlayerY - 13.0 + Bob);
 }
 
-void FHLWorldRenderer::Draw(FHLDraw& D, const FHLRenderView& V)
+void FHLWorldRenderer::Draw(FHLDraw& D, const FHLRenderView& InView)
 {
-	if (!V.Sim || !V.Sim->Level) { return; }
+	if (!InView.Sim || !InView.Sim->Level) { return; }
+	FHLRenderView V = InView;
+	{
+		const FPlayer& P = V.Sim->P;
+		double LineY = 0, Angle = 0;
+		if ((P.Grounded || P.AirTime < 0.05) && P.Hang == 0 && P.Ladder < 0 && V.Sim->Phase != EPhase::Dying &&
+			SlopeAt(*V.Sim->Level, V.PlayerX, V.PlayerY, LineY, Angle))
+		{
+			V.PlayerY = FMath::Max(V.PlayerY, LineY);
+		}
+	}
 	VisibleX0 = V.CamX - 40;
 	VisibleX1 = V.CamX + V.ViewW + 40;
 
@@ -311,7 +376,7 @@ void FHLWorldRenderer::DrawGroundTop(FHLDraw& D, const FHLRenderView& V, double 
 	}
 	const double Step = 3.2;
 	const double Start = FMath::FloorToDouble(A / Step) * Step;
-	for (double X = Start; X < B && Setting == ESetting::Forest; X += Step)
+	for (double X = Start; X < B && (Setting == ESetting::Forest || Setting == ESetting::Mountain); X += Step)
 	{
 		if (X < X0 || X + Step > X1 + 0.01) { continue; }
 		// The grass is trampled flat around a jaw trap, so its teeth stand clear against the mist.
@@ -357,7 +422,7 @@ void FHLWorldRenderer::DrawPlayLayer(FHLDraw& D, const FHLRenderView& V)
 		D.Rect(G.X0, G.Top, G.X1, Bottom, Black);
 		DrawGroundTop(D, V, G.X0, G.X1, G.Top, L.Theme.Seed * 17u + (uint32)I);
 		// Ragged pit walls: roots and stones poking out of the sides.
-		for (int Side = 0; Side < 2 && L.Theme.Setting == ESetting::Forest; ++Side)
+		for (int Side = 0; Side < 2 && (L.Theme.Setting == ESetting::Forest || L.Theme.Setting == ESetting::Mountain); ++Side)
 		{
 			const double EX = Side == 0 ? G.X0 : G.X1;
 			const double Dir = Side == 0 ? -1.0 : 1.0;
@@ -383,7 +448,7 @@ void FHLWorldRenderer::DrawPlayLayer(FHLDraw& D, const FHLRenderView& V)
 
 	DrawSlopes(D, V);
 
-	const bool bBuilt = L.Theme.Setting != ESetting::Forest;
+	const bool bBuilt = L.Theme.Setting != ESetting::Forest && L.Theme.Setting != ESetting::Mountain;
 	for (int32 I = 0; I < (int32)L.Blocks.size(); ++I)
 	{
 		const FBlockDef& B = L.Blocks[I];
@@ -431,6 +496,22 @@ void FHLWorldRenderer::DrawPlayLayer(FHLDraw& D, const FHLRenderView& V)
 		}
 		else
 		{
+			const double Under = S.SurfaceAt((B.X0 + B.X1) * 0.5, B.Y1 - 1.0) - B.Y1;
+			if (Under > 6.0 && Under < 60.0)
+			{
+				// Not resting on the ground: a fallen trunk, propped on its own broken boughs.
+				const double R = (B.Y1 - B.Y0) * 0.5, CY = (B.Y0 + B.Y1) * 0.5;
+				D.Rect(B.X0 + R * 0.5, B.Y0, B.X1 - R * 0.5, B.Y1, Black);
+				D.Ellipse(B.X0 + R * 0.5, CY, R * 0.5, R, Black, 14);
+				D.Ellipse(B.X1 - R * 0.5, CY, R * 0.5, R, Black, 14);
+				D.TaperLine(B.X1 + 7, CY, B.X1 - 4, CY - 1, 2.0 * R * 0.8, 2.0 * R, Black);              // it thins toward the crown
+				D.TaperLine(B.X0 + 14, B.Y1 - 8, B.X0 - 10, B.Y1 + Under, 8.0, 3.5, Black);
+				D.TaperLine(B.X1 - 14, B.Y1 - 8, B.X1 + 12, B.Y1 + Under, 8.0, 3.5, Black);
+				D.TaperLine(B.X1 - 40, B.Y0 + 5, B.X1 + 6, B.Y0 - 34, 8.0, 1.5, Black);
+				D.TaperLine(B.X0 + 50, B.Y0 + 5, B.X0 + 34, B.Y0 - 24, 6.0, 1.2, Black);
+				D.Line(B.X0 + 12, B.Y0 + 0.6, B.X1 - 12, B.Y0 + 0.6, 0.8, HLGrey(0.4f, 0.4f));
+				continue;
+			}
 			// A mossy stone: rounded top corners.
 			const double R = FMath::Min(8.0, (B.X1 - B.X0) * 0.25);
 			D.Rect(B.X0, B.Y0 + R, B.X1, FMath::Min(B.Y1, Bottom), Black);
@@ -808,6 +889,27 @@ void FHLWorldRenderer::DrawPlayer(FHLDraw& D, const FHLRenderView& V)
 		BackHand = Shoulder + FVector2D(-F * 2.0, 1.0) + FVector2D(FMath::Sin(ArmA) * 12.0, FMath::Cos(ArmA) * 12.0);
 	}
 
+	if (Pose == EPose::Slide)
+	{
+		const FVector2D Feet(X, Y);
+		const double Tilt = SlideTilt(S, X, Y);
+		if (Tilt != 0)
+		{
+			Hip = Rotated(Hip, Feet, Tilt);
+			Shoulder = Rotated(Shoulder, Feet, Tilt);
+			BackHand = Rotated(BackHand, Feet, Tilt);
+			for (int Leg = 0; Leg < 2; ++Leg) { Knee[Leg] = Rotated(Knee[Leg], Feet, Tilt); Foot[Leg] = Rotated(Foot[Leg], Feet, Tilt); }
+		}
+		// grit thrown up behind
+		const double Fast = FMath::Clamp((FMath::Abs(P.VX) - 90.0) / 200.0, 0.0, 1.0);
+		for (int K = 0; K < 5 && Fast > 0; ++K)
+		{
+			const double Age = FMath::Fmod(V.Time * 3.0 + K * 0.2, 1.0);
+			const FVector2D Puff = Rotated(FVector2D(X - F * (10.0 + Age * 26.0 + K * 3.0), Y - 2.0 - Age * (6.0 + K * 2.0)), Feet, Tilt);
+			D.Circle(Puff.X, Puff.Y, 1.5 + Age * 3.5, HLGrey(0.45f, (float)(0.32 * Fast * (1.0 - Age))), 8);
+		}
+	}
+
 	// Legs
 	for (int Leg = 0; Leg < 2; ++Leg)
 	{
@@ -900,7 +1002,21 @@ void FHLWorldRenderer::DrawSlopes(FHLDraw& D, const FHLRenderView& V)
 		if (Sl.X1 < VisibleX0 || Sl.X0 > VisibleX1) { continue; }
 		// One smooth hillside over the stair-steps the sim walks on.
 		D.Quad(FVector2D(Sl.X0, Sl.Y0 - 0.5), FVector2D(Sl.X1, Sl.Y1 - 0.5), FVector2D(Sl.X1, Bottom), FVector2D(Sl.X0, Bottom), Black);
-		if (L.Theme.Setting != ESetting::Forest) { continue; }
+		if (Sl.bScree)
+		{
+			// Scree: no grass, a worn pale edge and loose stones. It reads as somewhere you cannot stand.
+			D.Line(Sl.X0, Sl.Y0, Sl.X1, Sl.Y1, 0.9, HLGrey(0.42f, 0.55f));
+			for (double X = FMath::Max(Sl.X0 + 4, FMath::FloorToDouble(VisibleX0 / 11.0) * 11.0); X < FMath::Min(Sl.X1 - 4, VisibleX1); X += 11.0)
+			{
+				const uint32 S = Hash32(L.Theme.Seed * 53u + (uint32)I, (uint32)(int32)FMath::FloorToInt(X) + 6000000u);
+				if (Hash01(S, 1) < 0.35) { continue; }
+				const double PX = X + Hash01(S, 2) * 8.0;
+				const double Top = FMath::Lerp(Sl.Y0, Sl.Y1, (PX - Sl.X0) / (Sl.X1 - Sl.X0));
+				D.Ellipse(PX, Top - 0.6, HashRange(S, 3, 1.4, 4.2), HashRange(S, 4, 1.0, 2.6), Black, 8);
+			}
+			continue;
+		}
+		if (L.Theme.Setting != ESetting::Forest && L.Theme.Setting != ESetting::Mountain) { continue; }
 		const double Step = 3.2;
 		for (double X = FMath::Max(Sl.X0, VisibleX0); X < FMath::Min(Sl.X1, VisibleX1); X += Step)
 		{
@@ -922,16 +1038,28 @@ void FHLWorldRenderer::DrawMechanisms(FHLDraw& D, const FHLRenderView& V)
 	const FLinearColor Steel = HLGrey(0.6f, 0.75f);
 	const FPlayer& P = S.P;
 
-	// Ladders: two rails and rungs.
+	// Ladders: two rails and rungs, tied back to the wall, the rails hooked over the ledge they reach.
 	for (const FLadderDef& Ld : L.Ladders)
 	{
-		if (Ld.X < VisibleX0 - 20 || Ld.X > VisibleX1 + 20) { continue; }
-		D.Line(Ld.X - 6.5, Ld.Top - 8, Ld.X - 6.5, Ld.Bottom, 2.0, Black);
-		D.Line(Ld.X + 6.5, Ld.Top - 8, Ld.X + 6.5, Ld.Bottom, 2.0, Black);
-		for (double Y = Ld.Bottom - 10; Y > Ld.Top - 4; Y -= 12)
+		if (Ld.X < VisibleX0 - 30 || Ld.X > VisibleX1 + 30) { continue; }
+		const double Side = S.HasSupport(Ld.X + 20.0, Ld.Top, 2.0, 2.0) ? 1.0 : -1.0;   // which way the ledge lies
+		const double Wall = Ld.X + Side * 15.0;
+		for (int R = -1; R <= 1; R += 2)
+		{
+			const double RX = Ld.X + R * 6.5;
+			D.Line(RX, Ld.Top - 13, RX, Ld.Bottom, 2.0, Black);
+			// over the top and down onto the ledge, like a handrail
+			D.Curve(FVector2D(RX, Ld.Top - 12), FVector2D(RX + Side * 5.0, Ld.Top - 25), FVector2D(RX + Side * 15.0, Ld.Top - 16), 2.0, 2.0, Black, 6);
+			D.Line(RX + Side * 15.0, Ld.Top - 16.5, RX + Side * 15.0, Ld.Top + 1, 2.0, Black);
+		}
+		for (double Y = Ld.Bottom - 10; Y > Ld.Top - 2; Y -= 12)
 		{
 			D.Line(Ld.X - 6.5, Y, Ld.X + 6.5, Y, 1.6, Black);
 			D.Line(Ld.X - 5.0, Y - 0.9, Ld.X + 5.0, Y - 0.9, 0.5, HLGrey(0.5f, 0.45f));
+		}
+		for (double Y = Ld.Top + 9; Y < Ld.Bottom - 12; Y += 48)
+		{
+			D.Line(Ld.X + Side * 6.5, Y, Wall, Y, 2.2, Black);   // stand-off brackets
 		}
 	}
 
@@ -1100,55 +1228,129 @@ void FHLWorldRenderer::DrawDog(FHLDraw& D, const FHLRenderView& V)
 	const FSim& S = *V.Sim;
 	const FDog& G = S.Dog;
 	if (!G.Active) { return; }
-	const double X = G.X, Y = G.Y, F = G.Facing;
-	const double Speed = FMath::Clamp(FMath::Abs(G.VX) / 260.0, 0.0, 1.0);
-	const bool bSit = G.Mode == EDogMode::Stay || (G.Grounded && G.SitTime > 0.7 && G.Mode != EDogMode::Point);
-	const bool bPoint = G.Mode == EDogMode::Point && Speed < 0.1;
-	const double Ph = G.RunPhase;
+	const double X = G.X, F = G.Facing;
+	const double Spd = FMath::Abs(G.VX);
+	const double Move = FMath::Clamp(Spd / 110.0, 0.0, 1.0);
+	const double Gallop = SmoothStep(150.0, 230.0, Spd);
+	const bool bAir = !G.Grounded;
+	const bool bPoint = G.Mode == EDogMode::Point && Spd < 25.0 && !bAir;
+	// Under something low (the gaps only it fits through) it goes belly-down.
+	const bool bLow = !S.IsFree({ X - 12.0, G.Y - 30.0, X + 12.0, G.Y - 17.0 });
+	const double Low = bLow ? 1.0 : 0.0;
+	const double Sit = (bPoint || bAir || bLow || Spd > 5.0) ? 0.0 : SmoothStep(0.4, 0.75, G.SitTime);
+	const double Cycle = G.RunPhase * 1.35 / (2.0 * PI);
+	const double GF = PawGround(S, X + F * 7.0, G.Y), GH = PawGround(S, X - F * 7.0, G.Y);
+	const double Bob = bAir ? 0.0 : FMath::Sin(Cycle * 4.0 * PI) * (0.5 + 0.9 * Gallop) * Move;
 
-	// Body: chest forward, haunches back; sitting drops the haunches.
-	const FVector2D Chest(X + F * 6.0, Y - 10.5 - (bSit ? 2.5 : 0.0));
-	const FVector2D Haunch(X - F * 7.0, Y - (bSit ? 6.0 : 10.0));
-	D.Line(Haunch.X, Haunch.Y, Chest.X, Chest.Y, 8.5, Black);
-	D.Circle(Chest.X, Chest.Y, 4.6, Black, 10);
-	D.Circle(Haunch.X, Haunch.Y, 4.6, Black, 10);
+	// Drawn a little larger than its collision box (except when squeezing under something), about its paws.
+	const double Size = bLow ? 1.0 : 1.2;
+	D.SetTransform(V.Scale * Size, X - (X - V.CamX) / Size, G.Y - (G.Y - V.CamY) / Size);
 
-	// Legs
-	for (int Leg = 0; Leg < 4; ++Leg)
+	// Shoulder and hip carry everything else. Sitting drops the hips; a gallop rocks the spine.
+	const FVector2D Sh(X + F * 7.0, GF - 14.5 + Bob + Low * 6.0 - Sit * 0.8);
+	const FVector2D Hp(X - F * (7.0 - Sit * 2.0), GH - 14.0 - Bob * 0.6 + Low * 6.0 + Sit * 7.5);
+
+	// Legs: an upper and a lower bone solved to where the paw is; hind legs add the long hock.
+	auto Leg = [&](bool bFront, double TrotOff, double GallopOff, bool bNear)
 	{
-		const bool bFront = Leg < 2;
-		const FVector2D Top = bFront ? Chest + FVector2D(-F * 1.0, 2.0) : Haunch + FVector2D(F * 1.0, 2.0);
-		double Sw = G.Grounded ? FMath::Sin(Ph + Leg * 1.7) * 5.5 * Speed : (bFront ? 5.0 : -5.0);
-		FVector2D Foot(Top.X + F * Sw, Y - 0.5);
-		if (bSit && !bFront) { Foot = FVector2D(Haunch.X + F * 5.0, Y - 0.5); }
-		if (bPoint && Leg == 0) { Foot = FVector2D(Top.X + F * 5.0, Y - 5.0); }   // one paw lifted, pointing
-		D.Line(Top.X, Top.Y, Foot.X, Foot.Y, 2.4, Black);
+		const FVector2D Top = bFront ? Sh + FVector2D(F * 0.5, 2.5) : Hp + FVector2D(-F * 0.5, 2.0);
+		const double Rest = Top.X + (bFront ? F * 0.5 : -F * 1.5);
+		double T = Cycle + FMath::Lerp(TrotOff, GallopOff, Gallop);
+		T -= FMath::FloorToDouble(T);
+		const double Stance = FMath::Lerp(0.55, 0.4, Gallop);
+		const double Amp = FMath::Lerp(4.5, 8.5, Gallop) * Move;
+		const double Lift = FMath::Lerp(2.6, 4.5, Gallop) * Move;
+		double FX = 0, FY = 0;
+		if (T < Stance) { FX = FMath::Lerp(Amp, -Amp, T / Stance); }           // paw planted, body passing over it
+		else
+		{
+			const double U = (T - Stance) / (1.0 - Stance);                       // paw swinging forward
+			FX = FMath::Lerp(-Amp, Amp, SmoothStep(0.0, 1.0, U));
+			FY = -FMath::Sin(U * PI) * Lift;
+		}
+		FVector2D Paw(Rest + F * FX, PawGround(S, Rest + F * FX, G.Y) - 0.8 + FY);
+		if (bAir) { Paw = Top + FVector2D(F * (bFront ? 7.0 : -7.5), bFront ? 7.5 : 8.0); }   // stretched out in a leap
+		if (!bFront && Sit > 0) { Paw = FMath::Lerp(Paw, FVector2D(Hp.X + F * 6.0, GH - 0.8), Sit); }
+		if (bPoint && bFront && bNear) { Paw = FVector2D(Top.X + F * 3.5, GF - 6.5); }       // one paw lifted
+		if (bFront)
+		{
+			const FVector2D Elbow = LimbJoint(Top, Paw, 6.5, 6.5, F);
+			D.TaperLine(Top.X, Top.Y, Elbow.X, Elbow.Y, 3.8, 2.4, Black);
+			D.TaperLine(Elbow.X, Elbow.Y, Paw.X, Paw.Y, 2.4, 1.8, Black);
+			D.Circle(Elbow.X, Elbow.Y, 1.2, Black, 6);
+		}
+		else
+		{
+			const FVector2D HockOff(-F * 2.2, -4.2);
+			FVector2D Hock = Paw + HockOff;
+			const FVector2D Knee = LimbJoint(Top, Hock, 6.5, 6.0, -F);
+			Paw = Hock - HockOff;
+			D.TaperLine(Top.X, Top.Y, Knee.X, Knee.Y, 5.0, 3.0, Black);
+			D.TaperLine(Knee.X, Knee.Y, Hock.X, Hock.Y, 3.0, 2.0, Black);
+			D.Line(Hock.X, Hock.Y, Paw.X, Paw.Y, 1.9, Black);
+			D.Circle(Knee.X, Knee.Y, 1.5, Black, 6);
+			D.Circle(Hock.X, Hock.Y, 1.0, Black, 6);
+		}
+		D.Ellipse(Paw.X + F * 1.0, Paw.Y, 2.2, 1.2, Black, 8);
+	};
+	// Trot: diagonal pairs together. Gallop: hind pair, then front pair.
+	Leg(true, 0.5, 0.62, false);
+	Leg(false, 0.0, 0.12, false);
+
+	// Torso: a deep chest, a tucked waist, rounded haunches.
+	{
+		const FVector2D Chest = Sh + FVector2D(-F * 1.0, 1.0), Rump = Hp + FVector2D(F * 0.5, 0.0);
+		D.Ellipse(Chest.X, Chest.Y, 5.6, 6.4, Black, 14);
+		D.Ellipse(Rump.X, Rump.Y, 5.2, 5.2, Black, 14);
+		D.Quad(Chest + FVector2D(0, -5.6), Rump + FVector2D(0, -4.5), Rump + FVector2D(F * 1.5, 4.2), Chest + FVector2D(-F * 1.5, 6.2), Black);
 	}
 
-	// Head, snout, ears
-	const double Nod = bPoint ? -1.5 : FMath::Sin(Ph * 0.5) * 0.8 * Speed;
-	const FVector2D Head(Chest.X + F * 6.0, Chest.Y - 5.5 + Nod);
-	D.Line(Chest.X, Chest.Y - 1.5, Head.X, Head.Y, 5.0, Black);
-	D.Circle(Head.X, Head.Y, 4.4, Black, 12);
-	D.Quad(FVector2D(Head.X + F * 2.0, Head.Y - 2.2), FVector2D(Head.X + F * 9.0, Head.Y - 0.6),
-	       FVector2D(Head.X + F * 9.0, Head.Y + 2.0), FVector2D(Head.X + F * 2.0, Head.Y + 2.6), Black);
-	D.Tri(Head.X - F * 2.5, Head.Y - 2.5, Head.X + F * 0.5, Head.Y - 3.5, Head.X - F * 2.0, Head.Y - 9.5, Black);
-	D.Tri(Head.X + F * 0.5, Head.Y - 3.5, Head.X + F * 2.8, Head.Y - 2.8, Head.X + F * 1.5, Head.Y - 8.5, Black);
+	Leg(true, 0.0, 0.5, true);
+	Leg(false, 0.5, 1.0, true);
 
-	// Tail: wags when the child is near, held out straight when pointing.
+	// Neck and head: carried high at a walk, stretched out at a gallop, low when pointing or crawling.
+	FVector2D HeadOff = FMath::Lerp(FVector2D(F * 7.5, -6.5), FVector2D(F * 9.0, -4.0), Gallop);
+	HeadOff = FMath::Lerp(HeadOff, FVector2D(F * 5.5, -8.5), Sit);
+	if (bPoint) { HeadOff = FVector2D(F * 9.5, -3.0); }
+	if (bLow) { HeadOff = FVector2D(F * 9.0, -0.5); }
+	const FVector2D Hd = Sh + HeadOff + FVector2D(0, FMath::Sin(Cycle * 4.0 * PI + 0.8) * 0.7 * Move);
+	const double Open = FMath::Clamp(G.BarkFlash / 0.3, 0.0, 1.0);
+	const FVector2D Nose = Hd + FVector2D(F * 8.5, 1.0 - Open);
+	D.TaperLine(Sh.X + F * 1.5, Sh.Y - 1.5, Hd.X - F * 1.0, Hd.Y + 0.5, 7.2, 5.0, Black);
+	D.Circle(Hd.X, Hd.Y, 3.9, Black, 12);
+	D.Quad(Hd + FVector2D(F * 1.5, -3.0), Nose + FVector2D(0, -1.5), Nose + FVector2D(0, 0.7), Hd + FVector2D(F * 1.0, 1.6), Black);       // muzzle
+	D.Circle(Nose.X, Nose.Y - 0.5, 1.2, Black, 8);
+	D.Quad(Hd + FVector2D(F * 1.0, 0.8), Hd + FVector2D(F * 7.0, 2.2 + Open * 2.6), Hd + FVector2D(F * 6.4, 3.2 + Open * 2.6), Hd + FVector2D(F * 0.3, 3.5), Black);   // jaw
 	{
-		const double Wag = bPoint ? 0.0 : FMath::Sin(V.Time * (bSit ? 9.0 : 14.0)) * (bSit ? 4.0 : 2.5);
-		const FVector2D Root = Haunch + FVector2D(-F * 3.5, -2.5);
-		const FVector2D Tip = Root + FVector2D(-F * (bPoint ? 12.0 : 8.0), bPoint ? -1.0 : -8.0 + Wag);
-		D.Curve(Root, (Root + Tip) * 0.5 + FVector2D(-F * 2.0, 1.5), Tip, 2.6, 0.9, Black, 5);
+		// Ears: pricked; laid back at a gallop or when crawling.
+		const double Back = FMath::Max(Gallop, Low);
+		const FVector2D Tip = Hd + FMath::Lerp(FVector2D(-F * 1.0, -9.2), FVector2D(-F * 7.0, -4.0), Back);
+		D.Tri(Hd.X - F * 3.2, Hd.Y - 1.5, Hd.X + F * 0.8, Hd.Y - 3.4, Tip.X, Tip.Y, Black);
+		D.Tri(Hd.X - F * 1.2, Hd.Y - 2.8, Hd.X + F * 2.2, Hd.Y - 3.0, Tip.X + F * 2.4, Tip.Y + 0.6, Black);
+	}
+	D.Circle(Hd.X + F * 1.7, Hd.Y - 0.9, 0.6, HLGrey(0.7f, 0.7f), 6);   // a glint of an eye
+
+	// Tail: wags when it is pleased, streams behind at a run, held out straight when pointing.
+	{
+		const double Wag = FMath::Sin(V.Time * 11.0) * 3.0;
+		const FVector2D Root = Hp + FVector2D(-F * 4.2, -3.0);
+		FVector2D Mid = Root + FMath::Lerp(FVector2D(-F * 5.5, -1.5), FVector2D(-F * 5.0, 1.0), Move);
+		FVector2D Tip = Root + FMath::Lerp(FVector2D(-F * (6.0 + Wag * 0.6), -9.0), FVector2D(-F * 10.5, -3.0 + FMath::Sin(Cycle * 4.0 * PI) * 1.5), Move);
+		if (Sit > 0)
+		{
+			Mid = FMath::Lerp(Mid, Root + FVector2D(-F * 5.0, 4.5), Sit);
+			Tip = FMath::Lerp(Tip, Root + FVector2D(-F * 10.0, 5.5 - FMath::Abs(Wag) * 0.6), Sit);
+		}
+		if (bPoint) { Mid = Root + FVector2D(-F * 5.5, -1.2); Tip = Root + FVector2D(-F * 11.5, -1.5); }
+		D.Curve(Root, Mid, Tip, 3.2, 1.0, Black, 6);
 	}
 
 	// A bark: three short strokes fanning from the mouth.
 	if (G.BarkFlash > 0)
 	{
-		const float A = (float)FMath::Clamp(G.BarkFlash / 0.3, 0.0, 1.0);
+		const float A = (float)Open;
 		const FLinearColor C = HLGrey(0.85f, 0.7f * A);
-		const FVector2D M(Head.X + F * 11.0, Head.Y + 0.5);
+		const FVector2D M = Nose + FVector2D(F * 2.5, 1.5);
 		for (int K = -1; K <= 1; ++K)
 		{
 			const double Ang = K * 0.45;
@@ -1157,6 +1359,7 @@ void FHLWorldRenderer::DrawDog(FHLDraw& D, const FHLRenderView& V)
 			D.Line(M.X + Dir.X * R0, M.Y + Dir.Y * R0, M.X + Dir.X * (R0 + 5.0), M.Y + Dir.Y * (R0 + 5.0), 1.1, C);
 		}
 	}
+	D.SetTransform(V.Scale, V.CamX, V.CamY);
 }
 
 // What stands behind the play layer in the built settings (the forest keeps its trees).
@@ -1167,6 +1370,52 @@ void FHLWorldRenderer::DrawBuiltLayer(FHLDraw& D, const FHLRenderView& V, int La
 	const double Bottom = OY + kViewHeight + 20;
 	const double Floor = kLayerHorizon[Layer];
 	D.Rect(X0, Floor, X1, Bottom, Col);
+
+	if (T.Setting == ESetting::Mountain)
+	{
+		if (Layer < 2)
+		{
+			// Bare peaks far off, a nearer ridge in front of them: a jagged skyline built from two saw-tooth
+			// waves and a little noise at every vertex.
+			const double A1 = Layer == 0 ? 330 : 170, P1 = Layer == 0 ? 540 : 370;
+			const double A2 = Layer == 0 ? 120 : 70, P2 = Layer == 0 ? 197 : 131;
+			auto Ridge = [&](double PX)
+			{
+				auto Saw = [](double U) { U -= FMath::FloorToDouble(U); return 1.0 - FMath::Abs(U * 2.0 - 1.0); };
+				const uint32 S = Hash32(T.Seed * 151u + (uint32)Layer * 7u, (uint32)(int32)FMath::FloorToInt(PX / 30.0) + 800000u);
+				return Floor - A1 * FMath::Pow(Saw(PX / P1 + T.Seed * 0.37 + Layer * 0.5), 1.3) - A2 * Saw(PX / P2 + T.Seed * 0.11) - HashRange(S, 1, 0.0, 22.0);
+			};
+			const double Step = 30.0;
+			for (double PX = FMath::FloorToDouble(X0 / Step) * Step; PX < X1; PX += Step)
+			{
+				D.Quad(FVector2D(PX, Ridge(PX)), FVector2D(PX + Step, Ridge(PX + Step)), FVector2D(PX + Step, Floor + 2), FVector2D(PX, Floor + 2), Col);
+			}
+		}
+		else
+		{
+			// Pines, small on the far slope and tall close by, with boulders among the near ones.
+			const double Cell = Layer == 2 ? 95 : 210;
+			for (int32 C = FMath::FloorToInt(X0 / Cell) - 1; C <= FMath::FloorToInt(X1 / Cell) + 1; ++C)
+			{
+				const uint32 S = Hash32(T.Seed * 163u + (uint32)Layer * 11u, (uint32)(C + 900000));
+				if (Hash01(S, 1) < (Layer == 2 ? 0.25 : 0.45)) { continue; }
+				const double X = C * Cell + Hash01(S, 2) * Cell * 0.8;
+				const double H = Layer == 2 ? HashRange(S, 3, 46, 84) : HashRange(S, 3, 90, 150);
+				const double W = H * 0.2, Base = Floor + 6;
+				D.Rect(X - W * 0.1, Base - H * 0.3, X + W * 0.1, Base, Col);
+				for (int K = 0; K < 4; ++K)
+				{
+					const double Y0 = Base - H * (0.16 + 0.2 * K), HW = W * (1.0 - K * 0.2);
+					D.Tri(X - HW, Y0, X + HW, Y0, X + FMath::Sin(V.Time * 0.9 + X * 0.02) * (0.4 + T.Wind) * (K + 1) * 0.4, Y0 - H * 0.36, Col);
+				}
+				if (Layer == 3 && Hash01(S, 5) < 0.5)
+				{
+					D.Ellipse(X + HashRange(S, 6, 40, 120), Floor + 4, HashRange(S, 7, 18, 44), HashRange(S, 8, 10, 24), Col, 14);
+				}
+			}
+		}
+		return;
+	}
 
 	if (T.Setting == ESetting::Warehouse)
 	{

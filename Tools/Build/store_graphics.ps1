@@ -69,7 +69,7 @@ $shots = [ordered]@{
     '04-a-stray' = @('desktop_11_level02_slope', 1600, 900)
     '05-the-warehouse' = @('desktop_15_level06_racking', 1600, 900)
     '06-sidings' = @('desktop_16_level07_wagon', 1600, 900)
-    '07-the-storm' = @('desktop_18_level09', 1600, 900)
+    '07-the-mountain' = @('desktop_18_level09_chasm', 1600, 900)
     '08-homecoming' = @('desktop_23_ending', 1600, 900)
 }
 foreach ($k in $shots.Keys) {

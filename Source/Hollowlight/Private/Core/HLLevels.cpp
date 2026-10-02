@@ -1,4 +1,4 @@
-// EMBERHOME core: the ten levels. (CLAUDE.md: Levels)
+// EMBERHOME core: the levels. (CLAUDE.md: Levels)
 // Units: the screen shows 400 units of height, ground top at y = 300, y grows downward.
 // Reach: a full jump rises ~102 and carries ~160 at a run (~198 at a sprint); the hands catch a ledge
 // up to ~160 above the ground; a slide fits under anything 22 or more above the ground; the dog fits
@@ -29,6 +29,15 @@ namespace HL
 				L.Ground.push_back(G);
 			}
 			L.Slopes.push_back({ X0, Y0, X1, Y1 });
+		}
+
+			// Scree: a slope too steep and loose to stand on. The child slides down it (see FGroundDef::Slide).
+		void AddScree(FLevelDef& L, double X0, double Y0, double X1, double Y1)
+		{
+			const size_t First = L.Ground.size();
+			AddSlope(L, X0, Y0, X1, Y1);
+			for (size_t I = First; I < L.Ground.size(); ++I) { L.Ground[I].Slide = Y1 > Y0 ? 1 : -1; }
+			L.Slopes.back().bScree = true;
 		}
 
 		FSolveStep Go(double X) { return { EStepKind::Go, X }; }
@@ -288,6 +297,38 @@ namespace HL
 			}
 
 			// 9 ------------------------------------------------------------------------------------
+			// A mountain. Rock terraces to climb hand over hand, then scree: sit back and slide, low
+			// under a fallen trunk at the foot of the first slope, and jump the chasm that splits the second.
+			{
+				FLevelDef L;
+				L.Name = "The Mountain";
+				L.Subtitle = "Up is earned. Down is quick.";
+				L.GoalX = 5250;
+				L.MinX = -600;
+				L.MaxX = 5500;
+				L.bDog = true;
+				L.Ground = { { -600, 400, 300 }, { 400, 700, 190 }, { 700, 1000, 80 }, { 1000, 1500, -100 },
+				             { 2000, 2700, 300 }, { 2700, 2950, 190 }, { 2950, 3200, 80 }, { 3200, 3450, -30 },
+				             { 3450, 3800, -140 }, { 4500, 5500, 300 } };
+				AddScree(L, 1500, -100, 2000, 300);
+				AddScree(L, 3800, -140, 4100, 85);
+				AddScree(L, 4220, 130, 4500, 300);
+				L.Blocks = { { 2030, 238, 2210, 274 },     // fallen trunk at the foot of the scree: the slide carries you under
+				             { 5440, -400, 5500, 300 } };
+				L.Ladders = { { 988, -100, 80 } };
+				L.Traps = { { 1250 }, { 2450 } };
+				L.Checkpoints = { 150, 420, 1020, 2240, 2720, 3470, 4560 };
+				L.Theme.Seed = 89;
+				L.Theme.Setting = ESetting::Mountain;
+				L.Theme.Fog = 1.3;
+				L.Theme.Rain = 0.6;
+				L.Theme.Wind = 0.7;
+				L.Theme.Shafts = 0.6;
+				L.Theme.ForegroundDensity = 0.4;
+				Levels.push_back(L);
+			}
+
+			// 10 -----------------------------------------------------------------------------------
 			// Everything at once, in a storm.
 			{
 				FLevelDef L;
@@ -317,7 +358,7 @@ namespace HL
 				Levels.push_back(L);
 			}
 
-			// 10 -----------------------------------------------------------------------------------
+			// 11 -----------------------------------------------------------------------------------
 			// The way home: the rain thins, the sky warms, a lamp post at the edge of the village.
 			{
 				FLevelDef L;

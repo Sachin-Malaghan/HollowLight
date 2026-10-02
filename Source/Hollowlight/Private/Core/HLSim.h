@@ -61,6 +61,7 @@ namespace HL
 		bool Low = false;             // sliding or crouched
 		bool Sliding = false;
 		double SlideTime = 0;
+		int Scree = 0;                // sliding down a scree slope: its downhill direction
 		double SprintTime = 0;        // seconds of unbroken running
 		double VaultTimer = 0;        // > 0 just after a vault: keep the momentum
 		int Hang = 0;                 // 0 no, 1 hanging from a ledge, 2 pulling up

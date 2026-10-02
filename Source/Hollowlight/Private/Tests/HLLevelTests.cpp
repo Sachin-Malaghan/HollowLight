@@ -37,7 +37,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHLAutopilotFinishes, "Hollowlight.Levels.Autop
 bool FHLAutopilotFinishes::RunTest(const FString& Parameters)
 {
 	const std::vector<FLevelDef>& Levels = GetLevels();
-	TestTrue(TEXT("at least ten levels"), Levels.size() >= 10);
+	TestTrue(TEXT("at least eleven levels"), Levels.size() >= 11);
 	for (int32 L = 0; L < (int32)Levels.size(); ++L)
 	{
 		double Time = 0;

@@ -10,7 +10,8 @@ namespace HL
 {
 	// Solid from Top down to the bottom of the world. bStep marks the thin stair-steps a slope is built
 	// from: they collide like any ground but are drawn as one smooth hillside (see FSlopeDef).
-	struct FGroundDef { double X0, X1, Top; bool bStep = false; };
+	// Slide != 0 marks scree: too steep and loose to stand on, the child slides down it that way (+1 right, -1 left).
+	struct FGroundDef { double X0, X1, Top; bool bStep = false; int Slide = 0; };
 	struct FBlockDef { double X0, Y0, X1, Y1; };               // free-standing solid (stone, stump, overhang)
 	struct FCrateDef { double X; double Bottom; };             // X = left edge
 	struct FTrapDef { double X; };                             // centre; rests on the surface below it
@@ -21,7 +22,7 @@ namespace HL
 	struct FWaterDef { double X0, X1, Surface; };              // deadly to the child; crates float
 
 	// --- 2.0: terrain, things to operate, the dog -------------------------------------------------
-	struct FSlopeDef { double X0, Y0, X1, Y1; };               // drawn hillside; collision is the bStep grounds under it
+	struct FSlopeDef { double X0, Y0, X1, Y1; bool bScree = false; };   // drawn hillside; collision is the bStep grounds under it
 	struct FLadderDef { double X, Top, Bottom; };              // hold jump to climb, down to descend; Top is a surface
 	// A door: solid while shut, slides up when open. With bBridge it is a drawbridge deck instead:
 	// raised (and not solid) until opened, then it lowers and can be walked on.
@@ -45,7 +46,7 @@ namespace HL
 	// Climb: up the ladder the child is standing at   CallDog: whistle the dog back to heel if it is staying
 	struct FSolveStep { EStepKind Kind; double V = 0; double Y = -1.0e9; };
 
-	enum class ESetting : uint8_t { Forest, Warehouse, Railway, Station };
+	enum class ESetting : uint8_t { Forest, Warehouse, Railway, Station, Mountain };
 
 	// Look of a level. Everything stays monochrome: these only shift greys, density and weather.
 	struct FTheme
@@ -95,6 +96,6 @@ namespace HL
 		FTheme Theme;
 	};
 
-	// The ten levels, in play order.
+	// The levels, in play order.
 	const std::vector<FLevelDef>& GetLevels();
 }

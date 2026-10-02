@@ -26,7 +26,7 @@ namespace
 		return World ? Cast<AHLPlayerController>(World->GetFirstPlayerController()) : nullptr;
 	}
 
-	FAutoConsoleCommandWithWorldAndArgs CmdPlay(TEXT("hl.Play"), TEXT("hl.Play <level 1-10> [checkpoint 0-n]  start a level"),
+	FAutoConsoleCommandWithWorldAndArgs CmdPlay(TEXT("hl.Play"), TEXT("hl.Play <level 1-11> [checkpoint 0-n]  start a level"),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			if (AHLPlayerController* PC = FindController(World))
@@ -116,13 +116,18 @@ namespace
 		{ 7, 1, EHLScreen::Playing, true, 3.0f, TEXT("17_level08_barriers") },
 		{ 7, 2, EHLScreen::Playing, true, 3.5f, TEXT("17_level08_footbridge") },
 		{ 7, 3, EHLScreen::Playing, true, 3.0f, TEXT("17_level08_gate") },
-		{ 8, 3, EHLScreen::Playing, true, 3.0f, TEXT("18_level09") },
-		{ 9, 6, EHLScreen::Playing, true, 3.5f, TEXT("19_level10") },
+		{ 8, 0, EHLScreen::Playing, true, 3.4f, TEXT("18_level09_terraces") },
+		{ 8, 1, EHLScreen::Playing, true, 4.4f, TEXT("18_level09_ladder") },
+		{ 8, 2, EHLScreen::Playing, true, 3.6f, TEXT("18_level09_scree") },
+		{ 8, 2, EHLScreen::Playing, true, 4.5f, TEXT("18_level09_trunk") },
+		{ 8, 5, EHLScreen::Playing, true, 2.9f, TEXT("18_level09_chasm") },
+		{ 9, 3, EHLScreen::Playing, true, 3.0f, TEXT("19_level10") },
+		{ 10, 6, EHLScreen::Playing, true, 3.5f, TEXT("19_level11") },
 		{ 2, -1, EHLScreen::Playing, false, 1.6f, TEXT("20_hud_card") },
 		{ 0, 2, EHLScreen::Playing, false, 1.5f, nullptr },
 		{ -1, 0, EHLScreen::Paused, false, 0.6f, TEXT("21_paused") },
 		{ 0, 6, EHLScreen::Playing, false, 9.0f, TEXT("22_complete") },
-		{ 9, 7, EHLScreen::Playing, false, 13.0f, TEXT("23_ending") },
+		{ 10, 7, EHLScreen::Playing, false, 13.0f, TEXT("23_ending") },
 		{ -1, 0, EHLScreen::Settings, false, 0.8f, TEXT("24_settings") },
 		{ -1, 0, EHLScreen::Calibrate, false, 0.8f, TEXT("25_calibrate") },
 		{ 0, 0, EHLScreen::Playing, true, 1.2f, TEXT("30_pose_slide"), (int32)HL::EPose::Slide },

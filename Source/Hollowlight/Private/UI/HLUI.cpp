@@ -29,8 +29,8 @@ namespace
 
 	const TCHAR* Roman(int32 N)
 	{
-		static const TCHAR* R[] = { TEXT("I"), TEXT("II"), TEXT("III"), TEXT("IV"), TEXT("V"), TEXT("VI"), TEXT("VII"), TEXT("VIII"), TEXT("IX"), TEXT("X") };
-		return (N >= 1 && N <= 10) ? R[N - 1] : TEXT("");
+		static const TCHAR* R[] = { TEXT("I"), TEXT("II"), TEXT("III"), TEXT("IV"), TEXT("V"), TEXT("VI"), TEXT("VII"), TEXT("VIII"), TEXT("IX"), TEXT("X"), TEXT("XI"), TEXT("XII") };
+		return (N >= 1 && N <= 12) ? R[N - 1] : TEXT("");
 	}
 
 	FString FormatTime(double Seconds)
@@ -349,7 +349,7 @@ namespace
 		S.Text.Draw(TEXT("LEVELS"), S.W * 0.5, S.H * 0.14, S.H * 0.042, WithAlpha(Ink, In), 0.5, 500);
 
 		const int32 N = G.NumLevels();
-		const int32 Cols = 5;
+		const int32 Cols = N > 10 ? 6 : 5;
 		const double GridW = FMath::Min(S.W - S.SafeL() - S.SafeR() - S.H * 0.2, S.H * 1.75);
 		const double CellW = GridW / Cols, CellH = S.H * 0.27;
 		const double X0 = S.W * 0.5 - GridW * 0.5, Y0 = S.H * 0.25;
@@ -574,7 +574,7 @@ namespace
 		}
 
 		// Second level: the dog arrives, and with it the ACT control.
-		if (G.LevelIndex == 1 && G.Sim.CheckpointIndex <= 1)
+		if (G.LevelIndex == 1)
 		{
 			const double HintA = SmoothStep(4.6, 5.6, T) * (1.0 - SmoothStep(14.0, 15.5, T));
 			if (HintA > 0.001)

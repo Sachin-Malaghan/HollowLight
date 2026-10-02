@@ -562,6 +562,19 @@ namespace HL
 			}
 		}
 
+		// Scree: too steep and loose to stand on. The child sits back and slides, faster and faster.
+		const int Scree = (Pl.Grounded && Pl.SupportKind == ESupport::Ground && Pl.SupportIndex >= 0) ? Level->Ground[Pl.SupportIndex].Slide : 0;
+		if (Scree != 0)
+		{
+			if (Pl.Scree == 0) { Emit(EEvent::Slide, Pl.X, Pl.Y); }
+			Pl.Low = true;
+			Pl.H = kLowH;
+			Pl.Sliding = true;
+			Pl.SlideTime = 0;
+			Pl.Facing = Scree;
+		}
+		Pl.Scree = Scree;
+
 		// Stance: "down" at a run is a slide, otherwise a crouch. Stay low under anything too low to stand in.
 		if (Pl.Grounded && In.Down && !Pl.Low)
 		{
@@ -576,7 +589,7 @@ namespace HL
 		}
 		if (Pl.Low)
 		{
-			if (Pl.Sliding)
+			if (Pl.Sliding && Scree == 0)
 			{
 				Pl.SlideTime += kStep;
 				if (Pl.SlideTime >= kSlideTime || std::fabs(Pl.VX) < 50.0) { Pl.Sliding = false; }
@@ -598,7 +611,9 @@ namespace HL
 
 		if (Pl.Sliding)
 		{
-			Pl.VX = Approach(Pl.VX, 0.0, kSlideFriction * kStep);   // no steering in a slide
+			// No steering in a slide. On scree the hill does the pushing.
+			if (Scree != 0) { Pl.VX = Approach(Pl.VX, Scree * kScreeSpeed, kScreeAccel * kStep); }
+			else { Pl.VX = Approach(Pl.VX, 0.0, kSlideFriction * kStep); }
 		}
 		else
 		{
@@ -641,9 +656,17 @@ namespace HL
 		if (Pl.Hang != 0) { return; }   // caught a ledge during the move
 
 		const bool bWasGrounded = Pl.Grounded;
+		const bool bWasOnGround = bWasGrounded && Pl.SupportKind == ESupport::Ground;
 		const double FallSpeed = Pl.VY;
 		Pl.Grounded = false;
 		MovePlayerY(Pl.VY * kStep);
+		if (!Pl.Grounded && bWasOnGround && FallSpeed >= 0 && FallSpeed < 60.0)
+		{
+			// Going down a hillside's steps: keep the feet on the ground instead of hopping from step to step.
+			const double Y0 = Pl.Y;
+			MovePlayerY(8.0);
+			if (!Pl.Grounded) { Pl.Y = Y0; }
+		}
 		if (Pl.Grounded && !bWasGrounded && Pl.AirTime > 0.08)
 		{
 			Emit(EEvent::Land, Pl.X, Pl.Y, Clamp(FallSpeed / 900.0, 0.0, 1.0));
@@ -1251,7 +1274,7 @@ namespace HL
 				const double Ahead = (T.X - D.X) * Dir;
 				bJump = bJump || (!T.Closed && Ahead > 16.0 && Ahead < 46.0 && std::fabs(T.Y - D.Y) < 4.0);
 			}
-			if (!HasSupport(Front + Dir * 8.0, D.Y, 8.0, 18.0))
+			if (!HasSupport(Front + Dir * 8.0, D.Y, 8.0, 40.0))
 			{
 				bool bReach = false;
 				for (double DX = 12.0; DX <= 170.0 && !bReach; DX += 8.0) { bReach = HasSupport(Front + Dir * DX, D.Y, 70.0, 150.0); }
@@ -1295,27 +1318,39 @@ namespace HL
 			}
 		}
 		{
-			const double DY = D.VY * kStep;
-			const FRect B = D.Box();
-			double Allowed = DY;
-			bool bLanded = false;
-			ForEachSolid(*this, true, true, -1, [&](const FSolid& S)
+			auto MoveY = [&](double DY)
 			{
-				if (!(B.X0 < S.R.X1 - kEps && B.X1 > S.R.X0 + kEps)) { return; }
-				if (DY > 0 && B.Y1 <= S.R.Y0 + 0.5 && B.Y1 + DY >= S.R.Y0)
+				const FRect B = D.Box();
+				double Allowed = DY;
+				bool bLanded = false;
+				ForEachSolid(*this, true, true, -1, [&](const FSolid& S)
 				{
-					const double Dist = S.R.Y0 - B.Y1;
-					if (Dist <= Allowed) { Allowed = Dist; bLanded = true; }
-				}
-				else if (DY < 0 && !S.OneWay && B.Y0 >= S.R.Y1 - kEps && B.Y0 + DY < S.R.Y1)
-				{
-					const double Dist = S.R.Y1 - B.Y0;
-					if (Dist > Allowed) { Allowed = Dist; D.VY = 0; }
-				}
-			});
-			D.Y += Allowed;
-			D.Grounded = bLanded;
-			if (bLanded) { D.VY = 0; }
+					if (!(B.X0 < S.R.X1 - kEps && B.X1 > S.R.X0 + kEps)) { return; }
+					if (DY > 0 && B.Y1 <= S.R.Y0 + 0.5 && B.Y1 + DY >= S.R.Y0)
+					{
+						const double Dist = S.R.Y0 - B.Y1;
+						if (Dist <= Allowed) { Allowed = Dist; bLanded = true; }
+					}
+					else if (DY < 0 && !S.OneWay && B.Y0 >= S.R.Y1 - kEps && B.Y0 + DY < S.R.Y1)
+					{
+						const double Dist = S.R.Y1 - B.Y0;
+						if (Dist > Allowed) { Allowed = Dist; D.VY = 0; }
+					}
+				});
+				D.Y += Allowed;
+				if (bLanded) { D.VY = 0; }
+				return bLanded;
+			};
+			const bool bWasGrounded = D.Grounded;
+			const double Fall = D.VY;
+			D.Grounded = MoveY(D.VY * kStep);
+			if (!D.Grounded && bWasGrounded && Fall >= 0 && Fall < 60.0)
+			{
+				// trot down a hillside's steps without leaving the ground
+				const double Y0 = D.Y;
+				D.Grounded = MoveY(8.0);
+				if (!D.Grounded) { D.Y = Y0; }
+			}
 		}
 		const double Moved = std::fabs(D.X - StartX);
 		D.StuckTime = (Want != 0 && Moved < 0.2 * std::fabs(Want) * kStep) ? D.StuckTime + kStep : 0.0;

@@ -6,7 +6,7 @@ Read this file in full before changing anything. It is the standing spec for the
 
 A side-scrolling puzzle-platformer in Unreal Engine 5.8 (C++), for Android, iOS and Windows, with a
 static marketing website. A small child in a scarf carries a lantern through a grey, rainy forest;
-the lantern is the only warm colour in the world. Ten levels; reach the lamp post to "bring the light home".
+the lantern is the only warm colour in the world. Eleven levels; reach the lamp post to "bring the light home".
 
 **Names.** The game is called **EMBERHOME** (renamed from HOLLOWLIGHT on 2026-09-29 because that name
 was already taken on Google Play and the App Store). Everything players see says EMBERHOME; the app id is
@@ -71,8 +71,9 @@ Private/Tests   automation tests
 | 6 | The Warehouse | a plate the dog holds, a crowbar up on the racking, a crate parked on a plate |
 | 7 | Sidings | railway yard: slide under a wagon, the dog into the signal hut, a swing bridge |
 | 8 | The Station | luggage on one plate, the dog on another, a footbridge, a crowbar gate, a ladder |
-| 9 | The Storm | everything, with lightning and heavy rain |
-| 10 | Homecoming | calmer; the rain thins, dawn warms the sky, a village lamp post |
+| 9 | The Mountain | rock terraces to climb by the ledges, a ladder, scree slopes you slide down, a chasm to jump mid-slide |
+| 10 | The Storm | everything, with lightning and heavy rain |
+| 11 | Homecoming | calmer; the rain thins, dawn warms the sky, a village lamp post |
 
 Puzzle levels carry a `Solution` script (go here, ACT, wait for the gate, climb...) that the autopilot
 follows; that script is the proof the level can be solved. `run.ps1 -base` (no script) must *fail* on a
@@ -170,12 +171,19 @@ Things to operate (`HLLevel.h`, `FSim::DoAct` / `UpdateMechanisms` / `UpdateDog`
 - **The dog** cannot be hurt and never springs a trap. It follows, points at open jaws ahead and barks, fits
   under a 16-high gap, and catches up with a poof if left behind. If the child dithers inside a `FHintDef`
   range it runs to the thing that matters and barks at it - a nudge, never the whole answer.
-- Settings (`FTheme.Setting`): Forest, Warehouse, Railway, Station change only the backdrop layers, the floor
+- **Scree** (`AddScree`, `FGroundDef::Slide`, added 2026-10-02 for the mountain level the user asked for): a
+  slope too steep to stand on. The child is put into a slide and pushed downhill up to 320, no steering; a
+  jump still works (that is how the chasm is crossed), and the slide carries on under low things at the
+  foot. It cannot be walked up. Going down any slope the feet are snapped to the next step (child and dog)
+  so nobody hops down a hillside.
+- The dog is drawn from a small skeleton (`DrawDog`): shoulder and hip, two-bone legs solved to planted paws
+  (hind legs with a hock), trot and gallop gaits, sit, point, crawl under low gaps, paws on the hillside line.
+- Settings (`FTheme.Setting`): Forest, Warehouse, Railway, Station, Mountain change only the backdrop layers, the floor
   edge and how blocks are dressed (racking, wagons); still monochrome, still black silhouettes.
 
 ## Checklist
 
-- [x] Core sim, ten levels, autopilot; harness + automation tests green
+- [x] Core sim, eleven levels, autopilot; harness + automation tests green
 - [x] Renderer, UI, audio, save, input (keyboard, gamepad, mouse, touch)
 - [x] Windows Shipping package runs end-to-end
 - [x] Icons, website, privacy policy, store listing copy (`STORE_LISTING.md`)
