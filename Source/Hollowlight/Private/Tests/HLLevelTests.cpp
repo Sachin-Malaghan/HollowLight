@@ -201,4 +201,45 @@ bool FHLParkour::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHLGhost, "Hollowlight.Ghost.ComesWhenYouLingerAndFleesTheDog", HLTests::Flags)
+bool FHLGhost::RunTest(const FString& Parameters)
+{
+	const FLevelDef* Haunted = nullptr;
+	for (const FLevelDef& L : GetLevels()) { if (L.bGhost && !Haunted) { Haunted = &L; } }
+	TestNotNull(TEXT("some level has a ghost"), Haunted);
+	if (!Haunted) { return true; }
+
+	// Standing still: it comes, and it puts the light out.
+	{
+		FSim Sim;
+		Sim.Load(*Haunted);
+		bool bCame = false;
+		for (int32 I = 0; I < (int32)(60.0 / kStep) && Sim.Deaths == 0; ++I)
+		{
+			Sim.Events.clear();
+			Sim.Step(FInput());
+			bCame = bCame || Sim.Ghost.State == 1;
+		}
+		TestTrue(TEXT("the ghost comes for a child who lingers"), bCame);
+		TestTrue(TEXT("and takes the light"), Sim.Deaths == 1 && Sim.LastDeath == EDeath::Ghost);
+	}
+	// A whistle: the dog sees it off.
+	{
+		FSim Sim;
+		Sim.Load(*Haunted);
+		bool bFled = false;
+		for (int32 I = 0; I < (int32)(40.0 / kStep); ++I)
+		{
+			FInput In;
+			In.Act = Sim.Ghost.State == 1 && Sim.Ghost.Alpha > 0.5 && !Sim.P.ActHeld;
+			Sim.Events.clear();
+			Sim.Step(In);
+			bFled = bFled || Sim.Ghost.State == 2;
+		}
+		TestTrue(TEXT("a whistle sends it away"), bFled);
+		TestEqual(TEXT("and nobody is hurt"), Sim.Deaths, 0);
+	}
+	return true;
+}
+
 #endif

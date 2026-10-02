@@ -77,6 +77,8 @@ public:
 	bool IsWorldPaused() const { return Screen == EHLScreen::Paused; }
 	bool ShowsWorld() const { return true; }
 	int32 NumLevels() const;
+	int32 NumCleared() const;                       // levels finished at least once
+	int32 ReachedCheckpoints(int32 Level) const;    // checkpoints of that level reached so far
 	const HL::FLevelDef& CurrentLevel() const { return *Sim.Level; }
 
 	// State (read by the HUD)
@@ -101,6 +103,8 @@ public:
 	FVector2D CalibrateRaw[2];                      // where the taps were reported (screen fractions)
 	static FVector2D CalibrateTarget(int32 Step) { return Step == 0 ? FVector2D(0.25, 0.35) : FVector2D(0.75, 0.65); }
 	bool bNewBest = false;
+	FString NoteText;            // the script line shown at the top right (FLevelDef::Notes, or the ghost warning)
+	double NoteAlpha = 0;
 	float ResultTime = 0;
 	int32 ResultDeaths = 0;
 
@@ -128,6 +132,7 @@ private:
 	double PixelW = 1, PixelH = 1;   // viewport size in pixels
 	void Back();
 	void CompleteLevel();
+	FString WantedNote() const;
 
 	IHLAudioSink* Audio = nullptr;
 	double NextLightningCheck = 0;

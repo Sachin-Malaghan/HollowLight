@@ -234,13 +234,35 @@ void UHLAudioSynth::OnSimEvent(const HL::FEvent& E, float Pan, float Distance)
 		V.Delay = 0.3f; V.Tone = 1; V.F0 = 160; V.F1 = 70; V.Harm = 0.6f; V.Dur = 0.3f; V.Amp = 0.2f; Queue(V);
 		break;
 	case EEvent::Whistle:
-		// two notes, rising
-		V.Tone = 1; V.F0 = 1560; V.F1 = 1760; V.Attack = 0.02f; V.Dur = 0.14f; V.Amp = 0.05f; V.Wet = 0.45f; Queue(V);
-		V.Delay = 0.16f; V.F0 = 1900; V.F1 = 2350; V.Dur = 0.2f; Queue(V);
+		// A person whistling for a dog: two breathy notes, the second bending up and settling.
+		V.Tone = 1; V.Noise = 0.1f; V.Cut1 = 0.75f; V.Cut2 = 0.4f; V.Attack = 0.03f; V.Vib = 0.006f; V.Wet = 0.4f; V.Amp = 0.05f;
+		V.F0 = 1480; V.FMid = 2200; V.F1 = 2120; V.KMid = 0.6f; V.Dur = 0.2f; V.Hold = 0.7f; Queue(V);
+		V.Delay = 0.28f; V.F0 = 1720; V.FMid = 2760; V.F1 = 2480; V.KMid = 0.35f; V.Dur = 0.36f; V.Hold = 0.6f; V.Vib = 0.01f; Queue(V);
 		break;
 	case EEvent::Bark:
-		V.Tone = 0.7f; V.F0 = 520; V.F1 = 300; V.Harm = 0.9f; V.Noise = 0.6f; V.Cut1 = 0.25f; V.Cut2 = 0.06f; V.Attack = 0.004f; V.Dur = 0.11f; V.Amp = 0.2f * Near; V.Wet = 0.3f; Queue(V);
-		V.Delay = 0.17f; V.F0 = 560; Queue(V);
+		// A small dog: two quick yaps, each a yelp up and down with a throaty edge and a puff of breath.
+		for (int32 I = 0; I < 2; ++I)
+		{
+			FVoiceSpec Y = V;
+			Y.Delay = 0.2f * I;
+			Y.Tone = 0.55f; Y.Saw = 0.9f; Y.F0 = 610.f + 50.f * I; Y.FMid = 1010.f + 60.f * I; Y.F1 = 520; Y.KMid = 0.22f;
+			Y.Attack = 0.006f; Y.Dur = 0.13f; Y.Hold = 0.3f; Y.Amp = 0.15f * Near; Y.Wet = 0.28f;
+			Queue(Y);
+			FVoiceSpec B = V;
+			B.Delay = Y.Delay; B.Noise = 1; B.Cut1 = 0.5f; B.Cut2 = 0.14f; B.Attack = 0.004f; B.Dur = 0.07f; B.Amp = 0.13f * Near; B.Wet = 0.25f;
+			Queue(B);
+		}
+		break;
+	case EEvent::GhostAppear:
+		// Two voices a tritone apart, swelling out of nothing, and a cold breath under them.
+		V.Tone = 1; V.Attack = 0.9f; V.Dur = 2.8f; V.Hold = 0.3f; V.Vib = 0.03f; V.VibHz = 4.0f; V.Wet = 0.9f;
+		V.F0 = 415; V.F1 = 300; V.Amp = 0.04f; Queue(V);
+		V.F0 = 587; V.F1 = 424; V.Amp = 0.022f; Queue(V);
+		V.Tone = 0; V.Vib = 0; V.Noise = 1; V.Cut1 = 0.03f; V.Cut2 = 0.008f; V.Attack = 0.7f; V.Dur = 2.4f; V.Hold = 0.2f; V.Amp = 0.12f; V.Wet = 0.5f; Queue(V);
+		break;
+	case EEvent::GhostFlee:
+		V.Tone = 1; V.F0 = 320; V.F1 = 1100; V.Attack = 0.04f; V.Dur = 0.8f; V.Vib = 0.04f; V.VibHz = 9.f; V.Amp = 0.04f; V.Wet = 0.85f; Queue(V);
+		V.Tone = 0; V.Vib = 0; V.Noise = 1; V.Cut1 = 0.25f; V.Cut2 = 0.06f; V.Attack = 0.05f; V.Dur = 0.6f; V.Amp = 0.09f; V.Wet = 0.5f; Queue(V);
 		break;
 	case EEvent::LadderStep:
 		V.Tone = 1; V.F0 = 310; V.F1 = 240; V.Harm = 0.4f; V.Dur = 0.06f; V.Amp = 0.06f; Queue(V);
@@ -281,29 +303,48 @@ void UHLAudioSynth::StartVoice(const FVoiceSpec& Spec)
 	V.bActive = true;
 }
 
-void UHLAudioSynth::PlayNote()
+void UHLAudioSynth::PlayBeat()
 {
-	const float* Scale = Warmth > 0.5f ? MajorScale : MinorScale;
-	const int32 Index = (int32)(((Rng >> 8) % 9));
-	FVoiceSpec N;
-	N.Tone = 1;
-	N.F0 = N.F1 = Scale[Index] * ((Rng & 0x100) ? 1.f : 2.f);
-	N.Harm = 0.35f;
-	N.Attack = 0.006f;
-	N.Dur = 3.2f;
-	N.Amp = 0.032f;
-	N.Pan = Noise() * 0.4f;
-	N.Wet = 0.75f;
-	N.bMusicBus = true;
-	StartVoice(N);
-	if (((Rng >> 3) & 3) == 0)
+	// A slow, warm round in C: C - G - A minor - F, one chord every eight beats. Soft pads and a bass note
+	// under a music-box line that wanders the pentatonic scale, speaks for two phrases and rests for one.
+	static const float Chords[4][3] = { { 130.81f, 164.81f, 196.00f }, { 123.47f, 146.83f, 196.00f }, { 110.00f, 130.81f, 164.81f }, { 87.31f, 130.81f, 174.61f } };
+	static const float Bass[4] = { 65.41f, 49.00f, 55.00f, 43.65f };
+	static const float Penta[8] = { 261.63f, 293.66f, 329.63f, 392.00f, 440.00f, 523.25f, 587.33f, 659.25f };
+	static const int32 Home[4] = { 2, 3, 4, 5 };   // where the tune lands at the top of each bar: E, G, A, C
+	const int32 Step = Beat % 8, Bar = (Beat / 8) % 4;
+	Noise();
+	const uint32 R = Rng >> 6;
+
+	if (Step == 0)
 	{
-		// sometimes a soft answering note
-		N.Delay = 0.45f;
-		N.F0 = N.F1 = Scale[FMath::Max(0, Index - 2)];
-		N.Amp = 0.022f;
+		for (int32 I = 0; I < 3; ++I)
+		{
+			FVoiceSpec Pad;
+			Pad.Tone = 1; Pad.F0 = Pad.F1 = Chords[Bar][I] * (Warmth > 0.5f && I == 2 ? 2.f : 1.f);
+			Pad.Harm = 0.12f; Pad.Attack = 1.5f; Pad.Dur = 5.6f; Pad.Hold = 0.25f; Pad.Amp = 0.017f; Pad.Vib = 0.002f; Pad.VibHz = 4.3f;
+			Pad.Pan = (I - 1) * 0.45f; Pad.Wet = 0.6f; Pad.bMusicBus = true;
+			StartVoice(Pad);
+		}
+		FVoiceSpec B;
+		B.Tone = 1; B.F0 = B.F1 = Bass[Bar]; B.Harm = 0.2f; B.Attack = 0.06f; B.Dur = 3.6f; B.Amp = 0.045f; B.Wet = 0.25f; B.bMusicBus = true;
+		StartVoice(B);
+	}
+
+	const bool bSpeaking = ((Beat / 32) % 3) != 2;
+	const float Chance = Step == 0 ? 0.9f : (Step % 2 == 0 ? 0.62f : 0.2f);
+	if (bSpeaking && (R & 1023) / 1023.f < Chance)
+	{
+		if (Step == 0) { MelodyIndex = Home[Bar] + ((R >> 10) & 1) * 2 - ((R >> 11) & 1) * 2; }
+		else { MelodyIndex += (int32)((R >> 10) % 5) - 2; }
+		MelodyIndex = FMath::Clamp(MelodyIndex, 0, 7);
+		FVoiceSpec N;
+		N.Tone = 1; N.F0 = N.F1 = Penta[MelodyIndex]; N.Harm = 0.3f; N.Attack = 0.005f; N.Dur = 2.6f; N.Amp = 0.03f;
+		N.Pan = ((R >> 14) & 255) / 255.f * 0.7f - 0.35f; N.Wet = 0.7f; N.bMusicBus = true;
+		StartVoice(N);
+		N.Delay = 0.84f; N.Amp = 0.011f; N.Pan = -N.Pan;   // an echo across the wood
 		StartVoice(N);
 	}
+	++Beat;
 }
 
 float UHLAudioSynth::Reverb(float In)
@@ -400,15 +441,15 @@ int32 UHLAudioSynth::OnGenerateAudio(float* OutAudio, int32 NumSamples)
 				const float Swell = 0.6f + 0.4f * FMath::Sin((float)(MusicClock * (0.05 + I * 0.031) * 2.0 * PI + I));
 				Drone += FMath::Sin((float)(DronePhase[I] * 2.0 * PI)) * Swell * (I == 2 ? 0.25f : 0.5f);
 			}
-			Drone *= 0.03f * Music;
+			Drone *= 0.016f * Music;
 			L += Drone;
 			R += Drone;
 			Wet += Drone * 0.4f;
 			MusicClock += Dt;
-			if (MusicClock >= NextNote)
+			if (MusicClock >= NextBeat)
 			{
-				NextNote = MusicClock + 2.4 + ((Rng >> 7) & 1023) / 1023.0 * 3.4;
-				PlayNote();
+				NextBeat += 0.56;
+				PlayBeat();
 			}
 		}
 
@@ -422,16 +463,25 @@ int32 UHLAudioSynth::OnGenerateAudio(float* OutAudio, int32 NumSamples)
 			const FVoiceSpec& S = V.S;
 			if (V.T > S.Dur + S.Attack) { V.bActive = false; continue; }
 			const float T = (float)V.T;
-			const float Env = T < S.Attack ? T / S.Attack : FMath::Exp(-(T - S.Attack) * 6.9f / S.Dur);
+			const float After = T - S.Attack, Held = S.Hold * S.Dur;
+			const float Env = T < S.Attack ? T / S.Attack : (After < Held ? 1.f : FMath::Exp(-(After - Held) * 6.9f / FMath::Max(0.01f, S.Dur - Held)));
 			float Sample = 0;
 			if (S.Tone > 0)
 			{
 				const float K = FMath::Clamp(T / S.Dur, 0.f, 1.f);
-				const float Hz = S.F0 * FMath::Pow(FMath::Max(1.f, S.F1) / FMath::Max(1.f, S.F0), K);
+				float Hz;
+				if (S.FMid > 0)
+				{
+					Hz = K < S.KMid ? S.F0 * FMath::Pow(S.FMid / FMath::Max(1.f, S.F0), K / S.KMid)
+					                : S.FMid * FMath::Pow(FMath::Max(1.f, S.F1) / S.FMid, (K - S.KMid) / (1.f - S.KMid));
+				}
+				else { Hz = S.F0 * FMath::Pow(FMath::Max(1.f, S.F1) / FMath::Max(1.f, S.F0), K); }
+				if (S.Vib > 0) { Hz *= 1.f + S.Vib * FMath::Sin(T * S.VibHz * 2.f * PI); }
 				V.Phase += Hz * Dt;
 				if (V.Phase > 1.0) { V.Phase -= 1.0; }
 				const float P = (float)(V.Phase * 2.0 * PI);
 				Sample += S.Tone * (FMath::Sin(P) + S.Harm * FMath::Sin(P * 2.f) * FMath::Exp(-T * 3.f));
+				if (S.Saw > 0) { Sample += S.Tone * S.Saw * (0.5f * FMath::Sin(P * 2.f) + 0.33f * FMath::Sin(P * 3.f) + 0.25f * FMath::Sin(P * 4.f) + 0.2f * FMath::Sin(P * 5.f)); }
 			}
 			if (S.Noise > 0)
 			{

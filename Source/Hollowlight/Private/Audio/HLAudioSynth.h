@@ -1,4 +1,4 @@
-// EMBERHOME: all sound is synthesised live - rain, wind, footsteps, traps, a sparse ambient score.
+// EMBERHOME: all sound is synthesised live - rain, wind, footsteps, traps, the dog, a gentle generated score.
 // No audio files. (CLAUDE.md: Audio)
 #pragma once
 
@@ -44,6 +44,12 @@ public:
 		float Cut2 = 0.02f;     // noise high-pass coefficient
 		float Wet = 0.15f;      // reverb send
 		float Harm = 0;         // 2nd harmonic amount (bells, piano)
+		float FMid = 0;         // > 0: the pitch passes through this at KMid of the way (a bark's yelp, a whistle's bend)
+		float KMid = 0.5f;
+		float Hold = 0;         // fraction of Dur held at full level before the decay (breath and voice, not struck things)
+		float Vib = 0;          // vibrato depth (fraction of pitch)
+		float VibHz = 5.5f;
+		float Saw = 0;          // upper harmonics 2..5 (a throat, not a bell)
 		bool bMusicBus = false; // follows the music setting instead of the sound setting
 	};
 
@@ -74,7 +80,7 @@ private:
 	std::atomic<float> TargetWarmth{ 0.f };
 
 	// Audio-thread state
-	static constexpr int32 MaxVoices = 32;
+	static constexpr int32 MaxVoices = 48;
 	FVoice Voices[MaxVoices];
 	float Rate = 48000.f;
 	uint32 Rng = 0x1234567u;
@@ -83,7 +89,8 @@ private:
 	float WindLp = 0, WindLp2 = 0;
 	double WindPhase = 0;
 	double DronePhase[3] = { 0, 0, 0 };
-	double MusicClock = 0, NextNote = 2.0;
+	double MusicClock = 0, NextBeat = 1.5;
+	int32 Beat = 0, MelodyIndex = 2;
 	double DripClock = 0;
 	TArray<float> CombBuf[4];
 	int32 CombPos[4] = { 0, 0, 0, 0 };
@@ -93,6 +100,6 @@ private:
 
 	float Noise();
 	void StartVoice(const FVoiceSpec& Spec);
-	void PlayNote();
+	void PlayBeat();
 	float Reverb(float In);
 };

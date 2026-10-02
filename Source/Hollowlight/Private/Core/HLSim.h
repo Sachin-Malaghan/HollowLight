@@ -21,13 +21,17 @@ namespace HL
 		Jump, Land, Footstep, PushStart, TrapSnap, TrapSnapCrate, Death, Respawn,
 		Checkpoint, Goal, CrateLand, CrateSplash, CrateReset, Splash, CrumbleCreak, CrumbleFall, LogSwoosh,
 		Slide, Vault, Grab, Climb, Roll, HardLand,
-		Lever, GateOpen, GateShut, PlateDown, PlateUp, Pickup, UseTool, Whistle, Bark, LadderStep, DogPoof
+		Lever, GateOpen, GateShut, PlateDown, PlateUp, Pickup, UseTool, Whistle, Bark, LadderStep, DogPoof,
+		GhostAppear, GhostFlee
 	};
 
 	// What the body is doing, for the renderer.
 	enum class EPose : uint8_t { Stand, Slide, Crouch, Vault, Hang, Climb, Roll, Stunned, Ladder };
 
-	enum class EDeath : uint8_t { None, Pit, Trap, Log, Water };
+	enum class EDeath : uint8_t { None, Pit, Trap, Log, Water, Ghost };
+
+	// What the ACT button would do right now (it is labelled with this).
+	enum class EActKind : uint8_t { Whistle, Take, Use, Lever };
 
 	enum class EPhase : uint8_t { Playing, Dying, Won };
 
@@ -155,6 +159,17 @@ namespace HL
 		FRect Box() const { return { X - W * 0.5, Y - H, X + W * 0.5, Y }; }
 	};
 
+	// Something pale that comes for the light when the child lingers (levels with bGhost). It drifts through
+	// walls. Getting on with the level, or a whistle - the dog barks at it - sends it away.
+	struct FGhost
+	{
+		int State = 0;                 // 0 not here, 1 coming, 2 fleeing
+		double X = 0, Y = 0;
+		double Alpha = 0;              // 0..1 how solid it looks
+		double Phase = 0;
+		int Side = 1;
+	};
+
 	class FSim
 	{
 	public:
@@ -174,6 +189,7 @@ namespace HL
 		FRect GateBox(int I) const;                               // where the gate is now (raised when open)
 		bool GateSolid(int I) const { return Level->Gates[I].bBridge ? Gates[I].Amount > 0.9 : Gates[I].Amount < 0.55; }
 		int LadderAt(double X, double FeetY) const;               // ladder the child at (X, FeetY) can hold, or -1
+		EActKind ActKind(int* OutIndex = nullptr) const;          // what ACT would do now, and to which thing
 
 		const FLevelDef* Level = nullptr;
 		double Time = 0;
@@ -191,6 +207,9 @@ namespace HL
 		std::vector<FItem> Items;
 		std::vector<bool> SocketUsed;
 		FDog Dog;
+		FGhost Ghost;
+		double Linger = 0;        // seconds since the child last got further (the ghost's cue)
+		double ProgressX = 0;
 		int CheckpointIndex = -1;
 		double Lantern = 1;       // 0 = out
 		double Fade = 0;          // 0 = clear, 1 = black
@@ -214,6 +233,7 @@ namespace HL
 		void DoAct();
 		void ThrowLever(int Index, double X, double Y);
 		void UpdateDog();
+		void UpdateGhost();
 		void PlaceDogNearPlayer();
 		void MovePlayerX(double DX, bool bAllowPush);
 		void MovePlayerY(double DY);

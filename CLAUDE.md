@@ -181,6 +181,28 @@ Things to operate (`HLLevel.h`, `FSim::DoAct` / `UpdateMechanisms` / `UpdateDog`
 - Settings (`FTheme.Setting`): Forest, Warehouse, Railway, Station, Mountain change only the backdrop layers, the floor
   edge and how blocks are dressed (racking, wagons); still monochrome, still black silhouettes.
 
+## Round 3 (asked for 2026-10-02): progress, script, ghost, sound
+
+- **Progress is kept checkpoint by checkpoint.** `UHLSaveGame::ReachedCheckpoints` (per level) and
+  `LastCheckpoint`; saved the moment a cairn lights. CONTINUE resumes at that checkpoint. The level select
+  shows one pip per checkpoint and "N of 11 lights brought home". Save `Version` 2 (v1 saves from the
+  ten-level game get a slot inserted for The Mountain).
+- **The script, top right** (`FLevelDef::Notes`, drawn in `DrawPlayingHud`): a line or two saying what the
+  problem is while the child stands in its range (optionally until a gate opens). The user asked for this so
+  future problems can explain themselves: add a `FNoteDef`, no code. The game is no longer wordless.
+- **The round button is named for what it will do** (`FSim::ActKind`): WHISTLE, TAKE, USE, PULL. "ACT" meant
+  nothing to the user. Hidden when there is no dog and nothing in reach.
+- **Ghost** (`FLevelDef::bGhost`, `FGhost`, `FSim::UpdateGhost`; levels 6, 7, 8, 10): 18 s without getting 30
+  further (or working a lever / tool) and something pale drifts in from behind, through walls, at 42 u/s. If it
+  reaches the child the light goes out (back to the checkpoint). Moving on, or a WHISTLE - the dog barks at
+  it - sends it away. It is the one thing in the play layer that is not black.
+- Tools are drawn large with a steel edge and a slow glint. Far among the trees (forest layer 2,
+  `DrawRelics`): an old car, a roofless works shed, a water tank.
+- Audio: the score is now a slow round in C (C - G - Am - F) with pads, bass and a wandering pentatonic
+  music-box line (`PlayBeat`); voices gained a pitch bend (`FMid`), `Hold`, vibrato and upper harmonics
+  (`Saw`) for a small dog's two-yap bark, a human two-note whistle, and the ghost.
+- **Next (planned, not built): `STORYBOARD.md`** - chapters of ten stages each.
+
 ## Checklist
 
 - [x] Core sim, eleven levels, autopilot; harness + automation tests green

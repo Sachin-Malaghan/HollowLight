@@ -22,11 +22,15 @@ public:
 	static constexpr const TCHAR* SlotName = TEXT("Hollowlight");
 
 	UPROPERTY() int32 Version = 1;
-	UPROPERTY() int32 UnlockedLevels = 1;     // 1..10
+	UPROPERTY() int32 UnlockedLevels = 1;     // 1..number of levels
 	UPROPERTY() int32 LastLevel = 0;
 	UPROPERTY() TArray<float> BestTimes;       // seconds, 0 = never finished
 	UPROPERTY() TArray<int32> BestDeaths;
 	UPROPERTY() bool bFinishedGame = false;
+	// Progress inside levels: how many checkpoints of each level have been reached (a cleared level counts
+	// them all), and the checkpoint CONTINUE resumes from (-1 = the start of LastLevel).
+	UPROPERTY() TArray<int32> ReachedCheckpoints;
+	UPROPERTY() int32 LastCheckpoint = -1;
 
 	UPROPERTY() bool bMusic = true;
 	UPROPERTY() bool bSound = true;

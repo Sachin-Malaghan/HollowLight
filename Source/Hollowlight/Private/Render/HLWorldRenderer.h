@@ -50,6 +50,8 @@ private:
 	void DrawSlopes(FHLDraw& D, const FHLRenderView& V);
 	void DrawMechanisms(FHLDraw& D, const FHLRenderView& V);
 	void DrawDog(FHLDraw& D, const FHLRenderView& V);
+	void DrawGhost(FHLDraw& D, const FHLRenderView& V);
+	void DrawRelics(FHLDraw& D, const FHLRenderView& V, const FLinearColor& Col, const FLinearColor& Gap, double X0, double X1, double Ground);
 	void DrawPlayer(FHLDraw& D, const FHLRenderView& V);
 	void DrawForeground(FHLDraw& D, const FHLRenderView& V);
 	void DrawRain(FHLDraw& D, const FHLRenderView& V);

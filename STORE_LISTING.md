@@ -29,6 +29,13 @@ A child in a scarf carries the only warm thing left — a lantern — through el
 
 Bring the light home.
 
+## What's new (2.2.0)
+
+Your progress is now kept checkpoint by checkpoint. A line of script at the top right tells you what each
+problem is asking for. The round button now says what it will do: WHISTLE, TAKE, USE or PULL. Tools are
+easier to see. Something pale comes for the light if you linger in the dark places - whistle, and the dog
+sees it off. New music, a real bark and a real whistle. Old cars and ruined sheds among the trees.
+
 ## What's new (2.1.0)
 
 A new level, The Mountain: climb the rock terraces, then slide down the scree and jump the chasm. The dog

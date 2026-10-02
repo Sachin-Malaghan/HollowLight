@@ -245,6 +245,14 @@ namespace HL
 			return FInput();
 		}
 
+		// Something pale is coming: whistle, and the dog sees it off.
+		if (Sim.Ghost.State == 1 && std::fabs(Sim.Ghost.X - Sim.P.X) < 150.0 && Sim.P.Grounded && Sim.ActKind() == EActKind::Whistle)
+		{
+			FInput In;
+			In.Act = !Sim.P.ActHeld;
+			return In;
+		}
+
 		double Target = Sim.Level->GoalX;
 		FInput Hold;
 		if (AdvanceScript(Sim, Target, Hold))

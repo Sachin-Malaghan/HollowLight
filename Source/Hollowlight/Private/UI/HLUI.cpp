@@ -292,15 +292,26 @@ namespace
 
 	FString ControlsHint(const FHLUiContext& Ctx)
 	{
-		return Ctx.bShowTouch ? FString(TEXT("hold  ◀  ▶  to run   ·   JUMP   ·   SLIDE   ·   ACT   ·   or swipe up / down"))
-		                      : FString(TEXT("← →  or  A D  to run   ·   SPACE  jump   ·   S  ↓  slide   ·   E  act   ·   ESC  pause"));
+		return Ctx.bShowTouch ? FString(TEXT("hold  ◀  ▶  to run   ·   JUMP   ·   SLIDE   ·   or swipe up / down"))
+		                      : FString(TEXT("← →  or  A D  to run   ·   SPACE  jump   ·   S  ↓  slide   ·   E  whistle / take / use   ·   ESC  pause"));
 	}
 
-	// Shown as the dog joins: what ACT is for.
-	FString ActHint(const FHLUiContext& Ctx)
+	// The round button is named for what it would do right now.
+	const TCHAR* ActLabel(const HL::FSim& Sim)
 	{
-		return Ctx.bShowTouch ? FString(TEXT("ACT  uses what is in reach   ·   with nothing in reach it whistles: the dog stays, or comes back"))
-		                      : FString(TEXT("E  uses what is in reach   ·   with nothing in reach it whistles: the dog stays, or comes back"));
+		switch (Sim.ActKind())
+		{
+		case HL::EActKind::Take: return TEXT("TAKE");
+		case HL::EActKind::Use: return TEXT("USE");
+		case HL::EActKind::Lever: return TEXT("PULL");
+		default: return TEXT("WHISTLE");
+		}
+	}
+
+	// Whistling is for the dog: no dog, nothing in reach, no button.
+	bool ShowAct(const HL::FSim& Sim)
+	{
+		return Sim.Dog.Active || Sim.ActKind() != HL::EActKind::Whistle;
 	}
 
 	void DrawTitle(FScreenCtx& S)
@@ -331,7 +342,8 @@ namespace
 		S.Text.Draw(ControlsHint(S.Ctx), S.W * 0.5, S.H - S.SafeB() - S.H * 0.05, S.H * 0.022, WithAlpha(Dim, In * 0.9), 0.5, 120);
 		if (bStarted)
 		{
-			const FString Where = FString::Printf(TEXT("%s  ·  %s"), Roman(G.Save->LastLevel + 1), UTF8_TO_TCHAR(GetLevels()[G.Save->LastLevel].Name.c_str()));
+			const FString Where = FString::Printf(TEXT("%s  ·  %s  ·  %d of %d lights home"), Roman(G.Save->LastLevel + 1),
+				UTF8_TO_TCHAR(GetLevels()[G.Save->LastLevel].Name.c_str()), G.NumCleared(), G.NumLevels());
 			S.Text.Draw(Where, S.W * 0.5, Y0 + S.H * 0.045, S.H * 0.02, WithAlpha(Faint, In), 0.5, 200);
 		}
 	}
@@ -346,9 +358,10 @@ namespace
 		FHLGame& G = S.Game;
 		const double In = SmoothStep(0.0, 0.35, G.ScreenTime);
 		S.Darken(0.62 * In);
-		S.Text.Draw(TEXT("LEVELS"), S.W * 0.5, S.H * 0.14, S.H * 0.042, WithAlpha(Ink, In), 0.5, 500);
+		S.Text.Draw(TEXT("LEVELS"), S.W * 0.5, S.H * 0.13, S.H * 0.042, WithAlpha(Ink, In), 0.5, 500);
 
 		const int32 N = G.NumLevels();
+		S.Text.Draw(FString::Printf(TEXT("%d of %d lights brought home"), G.NumCleared(), N), S.W * 0.5, S.H * 0.19, S.H * 0.021, WithAlpha(Dim, In), 0.5, 160);
 		const int32 Cols = N > 10 ? 6 : 5;
 		const double GridW = FMath::Min(S.W - S.SafeL() - S.SafeR() - S.H * 0.2, S.H * 1.75);
 		const double CellW = GridW / Cols, CellH = S.H * 0.27;
@@ -384,7 +397,20 @@ namespace
 			const float Best = G.Save->BestTimes.IsValidIndex(I) ? G.Save->BestTimes[I] : 0.f;
 			if (bOpen && Best > 0)
 			{
-				S.Text.Draw(FString::Printf(TEXT("best %s"), *FormatTime(Best)), CX, CY + CellH * 0.3, S.H * 0.018, WithAlpha(Faint, In), 0.5, 80);
+				S.Text.Draw(FString::Printf(TEXT("best %s"), *FormatTime(Best)), CX, CY + CellH * 0.28, S.H * 0.018, WithAlpha(Faint, In), 0.5, 80);
+			}
+			if (bOpen)
+			{
+				// One pip for each checkpoint of the level: lit as far as the child has got.
+				const int32 Total = (int32)GetLevels()[I].Checkpoints.size(), Lit = G.ReachedCheckpoints(I);
+				const double Gap = FMath::Min(CellW * 0.085, S.H * 0.02), PY = CY + CellH * 0.385, PipR = S.H * 0.0042;
+				S.D.SetTransform(1, 0, 0);
+				for (int32 K = 0; K < Total; ++K)
+				{
+					const double PX = CX + (K - (Total - 1) * 0.5) * Gap;
+					S.D.SetBlend(SE_BLEND_Translucent);
+					S.D.Circle(PX, PY, PipR, K < Lit ? WithAlpha(Ember, In) : WithAlpha(Faint, In * 0.6), 10);
+				}
 			}
 			if (bOpen && Best > 0)
 			{
@@ -537,14 +563,19 @@ namespace
 		Pad(L.Right, L.Radius, S.Ctx.bRightDown);
 		Pad(L.Jump, L.JumpRadius, S.Ctx.bJumpDown);
 		Pad(L.Slide, L.Radius, S.Ctx.bSlideDown);
-		Pad(L.Act, L.Radius, S.Ctx.bActDown);
+		const bool bAct = ShowAct(S.Game.Sim);
+		if (bAct) { Pad(L.Act, L.Radius, S.Ctx.bActDown); }
 		const double A = L.Radius * 0.34;
 		const FLinearColor G(1, 1, 1, 0.6f);
 		S.D.Tri(L.Left.X - A, L.Left.Y, L.Left.X + A * 0.7, L.Left.Y - A, L.Left.X + A * 0.7, L.Left.Y + A, G);
 		S.D.Tri(L.Right.X + A, L.Right.Y, L.Right.X - A * 0.7, L.Right.Y - A, L.Right.X - A * 0.7, L.Right.Y + A, G);
 		S.Text.Draw(TEXT("JUMP"), L.Jump.X, L.Jump.Y, L.JumpRadius * 0.34, FLinearColor(1, 1, 1, 0.65f), 0.5, 250);
 		S.Text.Draw(TEXT("SLIDE"), L.Slide.X, L.Slide.Y, L.Radius * 0.34, FLinearColor(1, 1, 1, 0.65f), 0.5, 200);
-		S.Text.Draw(TEXT("ACT"), L.Act.X, L.Act.Y, L.Radius * 0.34, FLinearColor(1, 1, 1, 0.65f), 0.5, 200);
+		if (bAct)
+		{
+			const FString Label = ActLabel(S.Game.Sim);
+			S.Text.Draw(Label, L.Act.X, L.Act.Y, L.Radius * (Label.Len() > 5 ? 0.27 : 0.34), FLinearColor(1, 1, 1, 0.65f), 0.5, Label.Len() > 5 ? 80 : 200);
+		}
 	}
 
 	void DrawPlayingHud(FScreenCtx& S)
@@ -573,14 +604,31 @@ namespace
 			}
 		}
 
-		// Second level: the dog arrives, and with it the ACT control.
-		if (G.LevelIndex == 1)
+		// The script, top right: what this stretch of the level is asking for.
+		if (G.NoteAlpha > 0.01 && !G.NoteText.IsEmpty())
 		{
-			const double HintA = SmoothStep(4.6, 5.6, T) * (1.0 - SmoothStep(14.0, 15.5, T));
-			if (HintA > 0.001)
+			TArray<FString> Lines;
+			G.NoteText.ParseIntoArray(Lines, TEXT("\n"));
+			const double Px = S.H * 0.026, LH = Px * 1.5;
+			const double XR = S.W - S.SafeR() - S.H * 0.045, Y0 = S.SafeT() + S.H * 0.17;
+			double MaxW = 0;
+			for (const FString& Line : Lines) { MaxW = FMath::Max(MaxW, S.Text.Size(Line, Px, 40).X); }
+			const double Rule = FMath::Max(2.0, S.U * 0.8);
+			S.D.SetTransform(1, 0, 0);
+			S.D.SetBlend(SE_BLEND_Translucent);
+			S.D.Rect(XR - MaxW - Px * 0.9, Y0 - LH * 0.8, XR + Px * 0.7, Y0 + LH * (Lines.Num() - 0.2), FLinearColor(0, 0, 0, (float)(0.42 * G.NoteAlpha)));
+			S.D.Rect(XR + Px * 0.7 - Rule, Y0 - LH * 0.8, XR + Px * 0.7, Y0 + LH * (Lines.Num() - 0.2), WithAlpha(Ember, 0.8 * G.NoteAlpha));
+			for (int32 I = 0; I < Lines.Num(); ++I)
 			{
-				S.Text.Draw(ActHint(S.Ctx), S.W * 0.5, S.H * 0.12, S.H * 0.024, WithAlpha(Ink, HintA * 0.85), 0.5, 80);
+				S.Text.Draw(Lines[I], XR, Y0 + I * LH, Px, WithAlpha(Ink, G.NoteAlpha * 0.95), 1.0, 40);
 			}
+		}
+
+		// Keyboard: say what E would do now.
+		if (!S.Ctx.bShowTouch && ShowAct(G.Sim))
+		{
+			S.Text.Draw(FString::Printf(TEXT("E  ·  %s"), ActLabel(G.Sim)), S.W - S.SafeR() - S.H * 0.05, S.H - S.SafeB() - S.H * 0.06, S.H * 0.024,
+				WithAlpha(Ink, G.Sim.ActKind() == HL::EActKind::Whistle ? 0.45 : 0.85), 1.0, 160);
 		}
 
 		// Pause button (top right)

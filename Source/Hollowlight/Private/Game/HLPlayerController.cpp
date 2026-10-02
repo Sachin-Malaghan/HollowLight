@@ -59,6 +59,8 @@ namespace
 				PC->Save->bFinishedGame = false;
 				for (float& T : PC->Save->BestTimes) { T = 0; }
 				for (int32& D : PC->Save->BestDeaths) { D = 0; }
+				for (int32& C : PC->Save->ReachedCheckpoints) { C = 0; }
+				PC->Save->LastCheckpoint = -1;
 				PC->Game.SaveProgress();
 			}
 		}));
@@ -90,6 +92,7 @@ namespace
 		float Wait;
 		const TCHAR* Name;  // nullptr = no screenshot for this step
 		int32 Pose = -1;    // force a pose for this shot (visual check of poses the autopilot never strikes)
+		bool bLinger = false;   // stand still until the ghost comes
 	};
 
 	// Level shots start at a checkpoint and let the autopilot run into something worth seeing.
@@ -136,6 +139,8 @@ namespace
 		{ 0, 0, EHLScreen::Playing, true, 1.2f, TEXT("33_pose_roll"), (int32)HL::EPose::Roll },
 		{ 0, 0, EHLScreen::Playing, true, 1.2f, TEXT("34_pose_ladder"), (int32)HL::EPose::Ladder },
 		{ 1, 0, EHLScreen::Playing, false, 6.0f, TEXT("35_hud_act_hint") },
+		{ 5, 0, EHLScreen::Playing, false, 5.2f, TEXT("36_ghost"), -1, true },
+		{ 3, 3, EHLScreen::Playing, false, 2.2f, TEXT("37_tool_note") },
 	};
 }
 
@@ -451,10 +456,15 @@ void AHLPlayerController::TickCapture(float DeltaTime)
 	const FCaptureShot& S = CaptureScript[CaptureStep];
 	Game.bHideUI = S.bHideUI;
 	Game.DebugPose = S.Pose;
+	Game.bAutopilotInPlay = !S.bLinger;
 	if (S.Level >= 0)
 	{
 		if (S.Screen == EHLScreen::Title) { Game.StartAttract(S.Level); Game.GoTo(EHLScreen::Title); }
-		else { Game.StartLevel(S.Level, S.Checkpoint); }
+		else
+		{
+			Game.StartLevel(S.Level, S.Checkpoint);
+			if (S.bLinger) { Game.Sim.Linger = HL::kGhostWait - 1.0; }
+		}
 	}
 	else
 	{

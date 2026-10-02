@@ -39,6 +39,8 @@ namespace HL
 	constexpr double kHardLandSpeed = 720.0;    // landing faster than this needs a roll
 	constexpr double kScreeSpeed = 320.0;       // top speed sliding down a scree slope
 	constexpr double kScreeAccel = 520.0;
+	constexpr double kGhostWait = 18.0;         // seconds without getting anywhere before the ghost comes
+	constexpr double kGhostSpeed = 42.0;
 
 	constexpr double kPlayerW = 18.0;
 	constexpr double kPlayerH = 44.0;

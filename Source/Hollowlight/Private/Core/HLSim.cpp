@@ -127,6 +127,9 @@ namespace HL
 		P.SupportKind = ESupport::Ground;
 		P.IdleX = P.X;
 		MaxX = P.X;
+		Ghost = FGhost();
+		Linger = 0;
+		ProgressX = P.X;
 
 		Dog = FDog();
 		Dog.Active = InLevel.bDog;
@@ -222,6 +225,7 @@ namespace HL
 			PlayTime += kStep;
 			UpdatePlayer(In);
 			CheckHazards();
+			if (Phase == EPhase::Playing) { UpdateGhost(); }
 			break;
 		case EPhase::Dying:
 			if (LastDeath == EDeath::Pit && P.Y < 700.0)
@@ -979,6 +983,9 @@ namespace HL
 		P.IdleX = P.X;
 		Phase = EPhase::Playing;
 		PhaseTime = 0;
+		Ghost = FGhost();
+		Linger = 0;
+		ProgressX = P.X;
 		if (Dog.Active)
 		{
 			Dog.Mode = EDogMode::Follow;
@@ -1058,30 +1065,26 @@ namespace HL
 	void FSim::ThrowLever(int Index, double X, double Y)
 	{
 		LeverOn[Index] = !LeverOn[Index];
+		Linger = 0;
 		FGate& G = Gates[Level->Levers[Index].Gate];
 		G.Latched = !G.Latched;
 		Emit(EEvent::Lever, X, Y);
 	}
 
-	void FSim::DoAct()
+	EActKind FSim::ActKind(int* OutIndex) const
 	{
-		FPlayer& Pl = P;
+		const FPlayer& Pl = P;
 		const FLevelDef& L = *Level;
-
+		int Dummy = -1;
+		int& Index = OutIndex ? *OutIndex : Dummy;
 		// 1. A socket that wants the tool in hand.
 		for (int I = 0; I < (int)L.Sockets.size(); ++I)
 		{
 			const FSocketDef& S = L.Sockets[I];
-			if (SocketUsed[I] || std::fabs(Pl.X - S.X) > 28.0 || std::fabs(Pl.Y - S.Y) > 8.0) { continue; }
-			if (Pl.Carry >= 0 && L.Items[Pl.Carry].Kind == S.Kind)
+			if (!SocketUsed[I] && Pl.Carry >= 0 && L.Items[Pl.Carry].Kind == S.Kind && std::fabs(Pl.X - S.X) <= 28.0 && std::fabs(Pl.Y - S.Y) <= 8.0)
 			{
-				SocketUsed[I] = true;
-				Gates[S.Gate].Latched = true;
-				Items[Pl.Carry].Used = true;
-				Items[Pl.Carry].Carried = false;
-				Pl.Carry = -1;
-				Emit(EEvent::UseTool, S.X, S.Y);
-				return;
+				Index = I;
+				return EActKind::Use;
 			}
 		}
 		// 2. A tool on the ground.
@@ -1091,10 +1094,8 @@ namespace HL
 			{
 				if (!Items[I].Used && !Items[I].Carried && std::fabs(Pl.X - Items[I].X) < 26.0 && std::fabs(Pl.Y - Items[I].Y) < 8.0)
 				{
-					Items[I].Carried = true;
-					Pl.Carry = I;
-					Emit(EEvent::Pickup, Items[I].X, Items[I].Y);
-					return;
+					Index = I;
+					return EActKind::Take;
 				}
 			}
 		}
@@ -1103,13 +1104,57 @@ namespace HL
 		{
 			if (std::fabs(Pl.X - L.Levers[I].X) < 26.0 && std::fabs(Pl.Y - L.Levers[I].Y) < 8.0)
 			{
-				ThrowLever(I, L.Levers[I].X, L.Levers[I].Y);
-				return;
+				Index = I;
+				return EActKind::Lever;
 			}
 		}
 		// 4. Nothing in reach: whistle for the dog.
+		return EActKind::Whistle;
+	}
+
+	void FSim::DoAct()
+	{
+		FPlayer& Pl = P;
+		const FLevelDef& L = *Level;
+		int Index = -1;
+		switch (ActKind(&Index))
+		{
+		case EActKind::Use:
+			SocketUsed[Index] = true;
+			Gates[L.Sockets[Index].Gate].Latched = true;
+			Items[Pl.Carry].Used = true;
+			Items[Pl.Carry].Carried = false;
+			Pl.Carry = -1;
+			Linger = 0;
+			Emit(EEvent::UseTool, L.Sockets[Index].X, L.Sockets[Index].Y);
+			return;
+		case EActKind::Take:
+			Items[Index].Carried = true;
+			Pl.Carry = Index;
+			Linger = 0;
+			Emit(EEvent::Pickup, Items[Index].X, Items[Index].Y);
+			return;
+		case EActKind::Lever:
+			ThrowLever(Index, L.Levers[Index].X, L.Levers[Index].Y);
+			return;
+		default:
+			break;
+		}
+
 		Emit(EEvent::Whistle, Pl.X, Pl.Y - 36.0);
 		if (!Dog.Active) { return; }
+		if (Ghost.State == 1)
+		{
+			// The dog goes for it, barking, and it does not stay to argue.
+			Ghost.State = 2;
+			Linger = 0;
+			Dog.Facing = Ghost.X > Dog.X ? 1 : -1;
+			Dog.BarkFlash = 0.3;
+			Dog.BarkTimer = 0.8;
+			Emit(EEvent::Bark, Dog.X + Dog.Facing * 14.0, Dog.Y - 14.0);
+			Emit(EEvent::GhostFlee, Ghost.X, Ghost.Y);
+			return;
+		}
 		for (const FDogTaskDef& T : L.DogTasks)
 		{
 			if (Pl.X >= T.X0 && Pl.X <= T.X1 && !LeverOn[T.Lever])
@@ -1129,6 +1174,52 @@ namespace HL
 			Dog.Mode = EDogMode::GoStay;   // "come here and stay"
 			Dog.TargetX = Pl.X;
 		}
+	}
+
+	void FSim::UpdateGhost()
+	{
+		FGhost& G = Ghost;
+		if (!Level->bGhost || !Dog.Active) { return; }
+		if (P.X > ProgressX + 30.0) { ProgressX = P.X; Linger = 0; }
+		else { Linger += kStep; }
+		G.Phase += kStep * 2.2;
+
+		if (G.State == 0)
+		{
+			if (Linger > kGhostWait && P.Grounded)
+			{
+				G.State = 1;
+				G.Side = -P.Facing;
+				G.X = P.X + G.Side * 260.0;
+				G.Y = P.Y - 34.0;
+				G.Alpha = 0;
+				Emit(EEvent::GhostAppear, G.X, G.Y);
+			}
+			return;
+		}
+		if (G.State == 1)
+		{
+			if (Linger < 1.0)
+			{
+				G.State = 2;   // the child got moving again
+				Emit(EEvent::GhostFlee, G.X, G.Y);
+				return;
+			}
+			G.Alpha = Approach(G.Alpha, 1.0, kStep * 0.7);
+			G.X = Approach(G.X, P.X, kGhostSpeed * kStep);
+			G.Y = Approach(G.Y, P.Y - 30.0 + std::sin(G.Phase) * 5.0, 60.0 * kStep);
+			if (std::fabs(G.X - P.X) < 14.0 && std::fabs(G.Y - (P.Y - 28.0)) < 40.0)
+			{
+				G = FGhost();
+				Kill(EDeath::Ghost);   // the light goes out
+			}
+			return;
+		}
+		// Fleeing: away and up, thinning to nothing.
+		G.X += (G.X >= P.X ? 1.0 : -1.0) * 170.0 * kStep;
+		G.Y -= 35.0 * kStep;
+		G.Alpha -= kStep * 1.3;
+		if (G.Alpha <= 0) { G = FGhost(); }
 	}
 
 	void FSim::UpdateMechanisms()

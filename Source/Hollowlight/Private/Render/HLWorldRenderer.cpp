@@ -284,6 +284,10 @@ void FHLWorldRenderer::DrawTreeLayer(FHLDraw& D, const FHLRenderView& V, int Lay
 		};
 		D.Quad(FVector2D(X, H(X)), FVector2D(X + Step, H(X + Step)), FVector2D(X + Step, Bottom), FVector2D(X, Bottom), Col);
 	}
+	if (Layer == 2)
+	{
+		DrawRelics(D, V, Col, Shade(kLayerColor[1], T.Brightness, DawnWarmth(V) * 0.45), X0, X1, Horizon);
+	}
 
 	const double Cell = kLayerCell[Layer];
 	const int32 C0 = FMath::FloorToInt(X0 / Cell), C1 = FMath::FloorToInt(X1 / Cell);
@@ -538,6 +542,7 @@ void FHLWorldRenderer::DrawPlayLayer(FHLDraw& D, const FHLRenderView& V)
 	DrawTraps(D, V);
 	DrawDog(D, V);
 	DrawPlayer(D, V);
+	DrawGhost(D, V);
 }
 
 void FHLWorldRenderer::DrawProps(FHLDraw& D, const FHLRenderView& V)
@@ -1149,13 +1154,16 @@ void FHLWorldRenderer::DrawMechanisms(FHLDraw& D, const FHLRenderView& V)
 		}
 	}
 
-	// Tools: lying on the ground, or slung on the child's back.
+	// Tools: lying on the ground, or slung on the child's back. Bare steel, so they catch what light
+	// there is: an edge of grey, and a slow glint when they lie waiting to be found.
+	const FLinearColor Bright = HLGrey(0.82f, 0.9f);
 	for (int32 I = 0; I < (int32)S.Items.size(); ++I)
 	{
 		const FItem& It = S.Items[I];
 		if (It.Used) { continue; }
-		FVector2D O(It.X, It.Y - 3);
-		double Ang = 0.15;
+		const double K = It.Carried ? 1.2 : 1.7;
+		FVector2D O(It.X, It.Y - 5.0);
+		double Ang = -0.2;
 		if (It.Carried)
 		{
 			O = FVector2D(V.PlayerX - P.Facing * 6.0, V.PlayerY - 26.0);
@@ -1164,61 +1172,52 @@ void FHLWorldRenderer::DrawMechanisms(FHLDraw& D, const FHLRenderView& V)
 		else if (It.X < VisibleX0 - 30 || It.X > VisibleX1 + 30) { continue; }
 		const FVector2D Ax(FMath::Cos(Ang), FMath::Sin(Ang));
 		const FVector2D Up(-Ax.Y, Ax.X);
+		if (!It.Carried)
+		{
+			const float Gl = (float)(0.16 + 0.12 * FMath::Sin(V.Time * 2.6 + It.X * 0.05));
+			D.SetBlend(SE_BLEND_Additive);
+			D.Glow(O.X, O.Y - 4.0, 26.0, FLinearColor(Gl, Gl, Gl * 0.96f, 1), FLinearColor(0, 0, 0, 1), 18);
+			D.SetBlend(SE_BLEND_Translucent);
+		}
 		if (L.Items[I].Kind == EItem::Handle)
 		{
 			// a crank: shaft, arm, grip
-			const FVector2D A = O - Ax * 9.0, B = O + Ax * 5.0, C = B - Up * 9.0, E = C + Ax * 7.0;
-			D.Line(A.X, A.Y, B.X, B.Y, 2.6, Black);
-			D.Line(B.X, B.Y, C.X, C.Y, 2.6, Black);
-			D.Line(C.X, C.Y, E.X, E.Y, 3.4, Black);
-			D.Circle(A.X, A.Y, 2.6, Black, 8);
-			D.Line(A.X, A.Y - 1.0, B.X, B.Y - 1.0, 0.6, Steel);
+			const FVector2D A = O - Ax * 9.0 * K, B = O + Ax * 5.0 * K, C = B - Up * 9.0 * K, E = C + Ax * 7.0 * K;
+			D.Line(A.X, A.Y, B.X, B.Y, 3.4, Black);
+			D.Line(B.X, B.Y, C.X, C.Y, 3.4, Black);
+			D.Line(C.X, C.Y, E.X, E.Y, 4.6, Black);
+			D.Circle(A.X, A.Y, 3.6, Black, 10);
+			D.Line(A.X, A.Y - 1.2, B.X, B.Y - 1.2, 0.9, Bright);
+			D.Line(C.X, C.Y - 1.8, E.X, E.Y - 1.8, 0.9, Bright);
+			D.Ring(A.X, A.Y, 1.2, 2.0, Bright, Bright, 10);
 		}
 		else
 		{
-			// a crowbar: long bar, hooked end
-			const FVector2D A = O - Ax * 13.0, B = O + Ax * 11.0, C = B - Up * 5.0 + Ax * 3.0;
-			D.Line(A.X, A.Y, B.X, B.Y, 2.2, Black);
-			D.Line(B.X, B.Y, C.X, C.Y, 2.2, Black);
-			D.Line(A.X, A.Y - 0.9, B.X, B.Y - 0.9, 0.6, Steel);
+			// a crowbar: long bar, hooked claw
+			const FVector2D A = O - Ax * 13.0 * K, B = O + Ax * 11.0 * K, C = B - Up * 5.0 * K + Ax * 3.0 * K;
+			D.Line(A.X, A.Y, B.X, B.Y, 3.0, Black);
+			D.Line(B.X, B.Y, C.X, C.Y, 3.0, Black);
+			D.Tri(A.X, A.Y - 2.2, A.X, A.Y + 2.2, A.X - Ax.X * 5.0, A.Y - Ax.Y * 5.0, Black);
+			D.Line(A.X, A.Y - 1.1, B.X, B.Y - 1.1, 0.9, Bright);
+			D.Line(B.X, B.Y - 1.1, C.X, C.Y - 1.1, 0.9, Bright);
 		}
 	}
 
-	// A small pulse over whatever ACT would use right now.
+	// A small pulse over whatever the button would use right now.
 	if (S.Phase == EPhase::Playing && P.Grounded && !V.bAttract)
 	{
+		int32 Index = -1;
+		const EActKind Kind = S.ActKind(&Index);
 		FVector2D At(0, 0);
-		bool bShow = false;
-		for (int32 I = 0; I < (int32)L.Sockets.size() && !bShow; ++I)
-		{
-			const FSocketDef& So = L.Sockets[I];
-			if (!S.SocketUsed[I] && P.Carry >= 0 && L.Items[P.Carry].Kind == So.Kind && FMath::Abs(P.X - So.X) < 28.0 && FMath::Abs(P.Y - So.Y) < 8.0)
-			{
-				At = FVector2D(So.X, So.Y - 52);
-				bShow = true;
-			}
-		}
-		for (int32 I = 0; I < (int32)S.Items.size() && !bShow && P.Carry < 0; ++I)
-		{
-			if (!S.Items[I].Used && !S.Items[I].Carried && FMath::Abs(P.X - S.Items[I].X) < 26.0 && FMath::Abs(P.Y - S.Items[I].Y) < 8.0)
-			{
-				At = FVector2D(S.Items[I].X, S.Items[I].Y - 22);
-				bShow = true;
-			}
-		}
-		for (int32 I = 0; I < (int32)L.Levers.size() && !bShow; ++I)
-		{
-			if (FMath::Abs(P.X - L.Levers[I].X) < 26.0 && FMath::Abs(P.Y - L.Levers[I].Y) < 8.0)
-			{
-				At = FVector2D(L.Levers[I].X, L.Levers[I].Y - 44);
-				bShow = true;
-			}
-		}
-		if (bShow)
+		if (Kind == EActKind::Use) { At = FVector2D(L.Sockets[Index].X, L.Sockets[Index].Y - 52); }
+		else if (Kind == EActKind::Take) { At = FVector2D(S.Items[Index].X, S.Items[Index].Y - 30); }
+		else if (Kind == EActKind::Lever) { At = FVector2D(L.Levers[Index].X, L.Levers[Index].Y - 44); }
+		if (Kind != EActKind::Whistle)
 		{
 			const double Pulse = 0.5 + 0.5 * FMath::Sin(V.Time * 5.0);
-			const FLinearColor C(1, 1, 1, (float)(0.25 + 0.3 * Pulse));
-			D.Ring(At.X, At.Y, 4.0 + Pulse * 1.5, 5.2 + Pulse * 1.5, C, C, 20);
+			const FLinearColor C(1, 1, 1, (float)(0.3 + 0.35 * Pulse));
+			D.Ring(At.X, At.Y, 4.0 + Pulse * 1.5, 5.4 + Pulse * 1.5, C, C, 20);
+			D.Tri(At.X - 3.0, At.Y + 9.0, At.X + 3.0, At.Y + 9.0, At.X, At.Y + 13.5, C);
 		}
 	}
 }
@@ -1360,6 +1359,121 @@ void FHLWorldRenderer::DrawDog(FHLDraw& D, const FHLRenderView& V)
 		}
 	}
 	D.SetTransform(V.Scale, V.CamX, V.CamY);
+}
+
+// Something pale that comes for the light. The one thing in the play layer that is not black.
+void FHLWorldRenderer::DrawGhost(FHLDraw& D, const FHLRenderView& V)
+{
+	const FGhost& G = V.Sim->Ghost;
+	if (G.State == 0 || G.Alpha <= 0.01) { return; }
+	const double X = G.X, Y = G.Y;
+	const double F = V.PlayerX >= X ? 1.0 : -1.0;   // it faces the child
+	const float A = (float)(G.Alpha * (0.8 + 0.08 * FMath::Sin(V.Time * 7.0)));
+	const double Size = 1.3;   // taller than the child
+	D.SetTransform(V.Scale * Size, X - (X - V.CamX) / Size, (Y + 28.0) - (Y + 28.0 - V.CamY) / Size);
+
+	D.SetBlend(SE_BLEND_Additive);
+	const float Cold = 0.13f * (float)G.Alpha;
+	D.Glow(X, Y, 52.0, FLinearColor(Cold, Cold * 1.05f, Cold * 1.15f, 1), FLinearColor(0, 0, 0, 1), 24);
+	D.SetBlend(SE_BLEND_Translucent);
+
+	// A shroud: narrow at the head, widest at the shoulders, thinning to a ragged hem that trails behind.
+	const int N = 12;
+	auto Half = [&](double T) { return 6.5 + 6.5 * FMath::Sin(FMath::Min(1.0, T * 1.25) * PI * 0.62) - 3.0 * T * T; };
+	auto Mid = [&](double T) { return X - F * T * T * 13.0 + FMath::Sin(V.Time * 2.6 + T * 4.0 + G.Phase) * 2.6 * T; };
+	for (int I = 0; I < N; ++I)
+	{
+		const double T0 = double(I) / N, T1 = double(I + 1) / N;
+		const double Y0 = Y - 22.0 + T0 * 50.0, Y1 = Y - 22.0 + T1 * 50.0;
+		const FLinearColor C0 = HLGrey(0.9f, A * (float)(1.0 - T0 * T0)), C1 = HLGrey(0.9f, A * (float)(1.0 - T1 * T1));
+		const FVector2D L0(Mid(T0) - Half(T0), Y0), R0(Mid(T0) + Half(T0), Y0), L1(Mid(T1) - Half(T1), Y1), R1(Mid(T1) + Half(T1), Y1);
+		D.TriColors(L0, R0, R1, C0, C0, C1);
+		D.TriColors(L0, R1, L1, C0, C1, C1);
+	}
+	D.Circle(X, Y - 24.0, 7.2, HLGrey(0.9f, A), 16);
+	// arms reaching for the lantern
+	for (int K = 0; K < 2; ++K)
+	{
+		const double Reach = 15.0 + 3.0 * FMath::Sin(V.Time * 3.0 + K * 1.7);
+		D.TaperLine(X + F * 5.0, Y - 12.0 + K * 4.0, X + F * (5.0 + Reach), Y - 14.0 + K * 7.0, 3.6, 0.9, HLGrey(0.9f, A * 0.85f));
+	}
+	// hollow eyes and mouth
+	const FLinearColor Hole(0.02f, 0.02f, 0.02f, FMath::Min(1.f, A * 1.5f));
+	D.Ellipse(X + F * 0.8, Y - 25.0, 1.5, 2.3, Hole, 10);
+	D.Ellipse(X + F * 4.6, Y - 25.0, 1.4, 2.2, Hole, 10);
+	D.Ellipse(X + F * 2.8, Y - 20.0, 1.3, 2.0 + 0.6 * FMath::Sin(V.Time * 4.0), Hole, 10);
+	D.SetTransform(V.Scale, V.CamX, V.CamY);
+}
+
+// Things people left behind, rusting among the far trees: an old car, a roofless shed, a water tank.
+void FHLWorldRenderer::DrawRelics(FHLDraw& D, const FHLRenderView& V, const FLinearColor& Col, const FLinearColor& Gap, double X0, double X1, double Ground)
+{
+	const FTheme& T = V.Sim->Level->Theme;
+	const double Cell = 1150;
+	for (int32 C = FMath::FloorToInt((X0 - 500) / Cell); C <= FMath::FloorToInt((X1 + 100) / Cell); ++C)
+	{
+		const uint32 S = Hash32(T.Seed * 233u + 17u, (uint32)(C + 950000));
+		const double Kind = Hash01(S, 1);
+		const double X = C * Cell + Hash01(S, 2) * (Cell - 460);
+		const double Y = Ground + 9;
+		if (Kind < 0.42)
+		{
+			// An old saloon car on flat tyres, bonnet up, a sapling through the engine bay.
+			const double F = Hash01(S, 3) < 0.5 ? -1.0 : 1.0;
+			auto PX = [&](double U) { return X + 70 + F * U; };
+			auto Box = [&](double U0, double YA, double U1, double YB, const FLinearColor& Cc) { D.Rect(FMath::Min(PX(U0), PX(U1)), YA, FMath::Max(PX(U0), PX(U1)), YB, Cc); };
+			Box(-56, Y - 32, 56, Y - 10, Col);                                                              // body
+			D.Ellipse(PX(-56), Y - 21, 7, 11, Col, 12);                                                     // rounded boot
+			D.Ellipse(PX(56), Y - 20, 9, 10, Col, 12);                                                      // rounded wing
+			D.Quad(FVector2D(PX(-34), Y - 32), FVector2D(PX(24), Y - 32), FVector2D(PX(12), Y - 52), FVector2D(PX(-24), Y - 52), Col);   // cabin
+			D.Quad(FVector2D(PX(-27), Y - 34), FVector2D(PX(-8), Y - 34), FVector2D(PX(-8), Y - 48), FVector2D(PX(-21), Y - 48), Gap);   // rear window
+			D.Quad(FVector2D(PX(-4), Y - 34), FVector2D(PX(18), Y - 34), FVector2D(PX(9), Y - 48), FVector2D(PX(-4), Y - 48), Gap);      // front window
+			D.Ellipse(PX(-36), Y - 7, 10, 7.5, Col, 14);                                                    // tyres, gone flat
+			D.Ellipse(PX(36), Y - 7, 10, 7.5, Col, 14);
+			D.Circle(PX(-36), Y - 8, 3.2, Gap, 8);
+			D.Circle(PX(36), Y - 8, 3.2, Gap, 8);
+			D.Line(PX(26), Y - 32, PX(46), Y - 54, 2.6, Col);                                               // bonnet propped open
+			D.Curve(FVector2D(PX(40), Y - 30), FVector2D(PX(44), Y - 60), FVector2D(PX(38), Y - 84), 2.2, 0.6, Col, 6);     // sapling
+			D.Curve(FVector2D(PX(42), Y - 58), FVector2D(PX(52), Y - 66), FVector2D(PX(58), Y - 80), 1.4, 0.4, Col, 5);
+			D.Rect(FMath::Min(PX(58), PX(64)), Y - 22, FMath::Max(PX(58), PX(64)), Y - 18, Col);            // bumper
+		}
+		else if (Kind < 0.82)
+		{
+			// A works shed with a saw-tooth roof, one bay fallen in, the windows long gone.
+			const double W = 320, H = 96;
+			D.Rect(X, Y - H, X + W, Y + 4, Col);
+			for (int K = 0; K < 3; ++K)
+			{
+				const double BX = X + K * (W / 3.0);
+				if (K == 1) { continue; }
+				D.Tri(BX, Y - H, BX + W / 3.0, Y - H, BX + W * 0.09, Y - H - 40, Col);
+			}
+			D.Quad(FVector2D(X + W * 0.36, Y - H - 1), FVector2D(X + W * 0.64, Y - H - 1), FVector2D(X + W * 0.57, Y - H * 0.52), FVector2D(X + W * 0.41, Y - H * 0.68), Gap);   // the fallen bay
+			D.Line(X + W * 0.40, Y - H - 2, X + W * 0.56, Y - H * 0.55, 3.0, Col);                           // a rafter hanging in the gap
+			D.Rect(X + W - 34, Y - H - 62, X + W - 22, Y - H, Col);                                         // chimney
+			for (int K = 0; K < 5; ++K)
+			{
+				if (K == 2 || Hash01(S, 10 + K) < 0.25) { continue; }
+				const double WX = X + 22 + K * 62;
+				D.Rect(WX, Y - 70, WX + 30, Y - 38, Gap);
+				D.Rect(WX + 14, Y - 70, WX + 16, Y - 38, Col);
+				D.Rect(WX, Y - 55, WX + 30, Y - 53, Col);
+			}
+			D.Rect(X + 146, Y - 54, X + 180, Y + 4, Gap);                                                   // doorway
+			D.Line(X + 180, Y - 54, X + 196, Y - 6, 3.0, Col);                                              // door off its hinge
+		}
+		else
+		{
+			// A water tank on a lattice tower, leaning a little.
+			const double TX = X + 60, Lean = HashRange(S, 4, -8, 8);
+			D.Line(TX - 22, Y + 2, TX - 12 + Lean, Y - 96, 3.0, Col);
+			D.Line(TX + 22, Y + 2, TX + 12 + Lean, Y - 96, 3.0, Col);
+			D.Line(TX - 20, Y - 20, TX + 16 + Lean * 0.6, Y - 62, 1.6, Col);
+			D.Line(TX + 20, Y - 20, TX - 16 + Lean * 0.6, Y - 62, 1.6, Col);
+			D.Rect(TX - 26 + Lean, Y - 134, TX + 26 + Lean, Y - 94, Col);
+			D.Tri(TX - 30 + Lean, Y - 134, TX + 30 + Lean, Y - 134, TX + Lean, Y - 152, Col);
+		}
+	}
 }
 
 // What stands behind the play layer in the built settings (the forest keeps its trees).

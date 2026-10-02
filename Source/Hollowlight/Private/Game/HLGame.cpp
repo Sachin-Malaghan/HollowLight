@@ -23,7 +23,15 @@ void FHLGame::Init(UHLSaveGame* InSave, IHLAudioSink* InAudio, bool bTouchDevice
 {
 	Save = InSave;
 	Audio = InAudio;
+	if (Save->Version < 2)
+	{
+		// Saves from the ten-level game: The Mountain was added as level 9, so later records move up one.
+		if (Save->BestTimes.Num() == 10) { Save->BestTimes.Insert(0.f, 8); }
+		if (Save->BestDeaths.Num() == 10) { Save->BestDeaths.Insert(0, 8); }
+		Save->Version = 2;
+	}
 	if (Save->BestTimes.Num() < NumLevels()) { Save->BestTimes.SetNumZeroed(NumLevels()); }
+	if (Save->ReachedCheckpoints.Num() < NumLevels()) { Save->ReachedCheckpoints.SetNumZeroed(NumLevels()); }
 	if (Save->BestDeaths.Num() < NumLevels()) { Save->BestDeaths.SetNumZeroed(NumLevels()); }
 	Save->UnlockedLevels = FMath::Clamp(Save->UnlockedLevels, 1, NumLevels());
 	Save->LastLevel = FMath::Clamp(Save->LastLevel, 0, Save->UnlockedLevels - 1);
@@ -36,6 +44,31 @@ void FHLGame::Init(UHLSaveGame* InSave, IHLAudioSink* InAudio, bool bTouchDevice
 		CalibrateStep = 0;
 		GoTo(EHLScreen::Calibrate);
 	}
+}
+
+int32 FHLGame::NumCleared() const
+{
+	int32 N = 0;
+	for (int32 I = 0; I < NumLevels() && I < Save->BestTimes.Num(); ++I) { N += Save->BestTimes[I] > 0 ? 1 : 0; }
+	return N;
+}
+
+int32 FHLGame::ReachedCheckpoints(int32 Level) const
+{
+	const int32 Total = (int32)GetLevels()[Level].Checkpoints.size();
+	if (Save->BestTimes.IsValidIndex(Level) && Save->BestTimes[Level] > 0) { return Total; }
+	return Save->ReachedCheckpoints.IsValidIndex(Level) ? FMath::Clamp(Save->ReachedCheckpoints[Level], 0, Total) : 0;
+}
+
+FString FHLGame::WantedNote() const
+{
+	if (Screen != EHLScreen::Playing || bAttract || Sim.Phase != EPhase::Playing) { return FString(); }
+	if (Sim.Ghost.State == 1) { return TEXT("Something has come for the light.\nWHISTLE: the dog will see it off."); }
+	for (const FNoteDef& N : Sim.Level->Notes)
+	{
+		if (Sim.P.X >= N.X0 && Sim.P.X <= N.X1 && (N.UntilGate < 0 || !Sim.Gates[N.UntilGate].Open)) { return FString(UTF8_TO_TCHAR(N.Text.c_str())); }
+	}
+	return FString();
 }
 
 void FHLGame::SaveProgress()
@@ -58,6 +91,9 @@ void FHLGame::StartLevel(int32 Index, int32 Checkpoint)
 	Shake = 0;
 	UpdateCamera(0, true);
 	Save->LastLevel = LevelIndex;
+	Save->LastCheckpoint = Sim.CheckpointIndex;
+	NoteText.Reset();
+	NoteAlpha = 0;
 	SaveProgress();
 	GoTo(EHLScreen::Playing);
 }
@@ -107,6 +143,17 @@ void FHLGame::Tick(float DeltaSeconds, const FHLControls& Controls, const FHLMen
 	}
 	UpdateCamera(Dt, false);
 
+	// The script line at the top right: fade the old one out before the new one comes in.
+	{
+		const FString Want = WantedNote();
+		if (Want == NoteText && !Want.IsEmpty()) { NoteAlpha = FMath::Min(1.0, NoteAlpha + Dt * 2.5); }
+		else
+		{
+			NoteAlpha -= Dt * 3.0;
+			if (NoteAlpha <= 0) { NoteAlpha = 0; NoteText = Want; }
+		}
+	}
+
 	Shake = FMath::Max(0.0, Shake - Dt * 12.0);
 	Lightning = FMath::Max(0.0, Lightning - Dt * 3.2);
 
@@ -151,6 +198,16 @@ void FHLGame::StepWorld(double Dt, const FHLControls& Controls)
 			if (E.Type == EEvent::Death && (Sim.LastDeath == EDeath::Trap || Sim.LastDeath == EDeath::Log)) { Shake = 3.0; }
 			if (E.Type == EEvent::Land && E.Strength > 0.75) { Shake = FMath::Max(Shake, 1.2); }
 			if (E.Type == EEvent::Respawn) { PrevX = Sim.P.X; PrevY = Sim.P.Y; }
+			if (E.Type == EEvent::Checkpoint && !bAttract && !bAutopilotInPlay && Screen == EHLScreen::Playing)
+			{
+				// Progress is kept checkpoint by checkpoint: CONTINUE comes back to this one.
+				Save->LastCheckpoint = Sim.CheckpointIndex;
+				if (Save->ReachedCheckpoints.IsValidIndex(LevelIndex))
+				{
+					Save->ReachedCheckpoints[LevelIndex] = FMath::Max(Save->ReachedCheckpoints[LevelIndex], Sim.CheckpointIndex + 1);
+				}
+				SaveProgress();
+			}
 			if (Audio)
 			{
 				const float Pan = (float)FMath::Clamp(((E.X - CamX) / FMath::Max(1.0, ViewW)) * 2.0 - 1.0, -1.0, 1.0);
@@ -224,6 +281,8 @@ void FHLGame::CompleteLevel()
 		Save->BestDeaths[LevelIndex] = ResultDeaths;
 	}
 	Save->UnlockedLevels = FMath::Clamp(FMath::Max(Save->UnlockedLevels, LevelIndex + 2), 1, NumLevels());
+	Save->LastCheckpoint = -1;
+	if (Save->ReachedCheckpoints.IsValidIndex(LevelIndex)) { Save->ReachedCheckpoints[LevelIndex] = (int32)Sim.Level->Checkpoints.size(); }
 	const bool bLast = LevelIndex == NumLevels() - 1;
 	if (bLast)
 	{
@@ -281,7 +340,7 @@ void FHLGame::Activate(const FHLButton& B)
 	switch (B.Action)
 	{
 	case EHLAction::Play:
-		StartLevel(FMath::Clamp(Save->LastLevel, 0, Save->UnlockedLevels - 1));
+		StartLevel(FMath::Clamp(Save->LastLevel, 0, Save->UnlockedLevels - 1), Save->LastCheckpoint);
 		break;
 	case EHLAction::Levels:
 		ReturnScreen = Screen;
@@ -450,7 +509,7 @@ void FHLGame::HandleMenu(const FHLMenuInput& Menu)
 		}
 		if (Audio) { Audio->OnUiSound(EHLUiSound::Move); }
 	};
-	const int32 Row = Screen == EHLScreen::LevelSelect ? 5 : 1;
+	const int32 Row = Screen == EHLScreen::LevelSelect ? (NumLevels() > 10 ? 6 : 5) : 1;
 	if (Menu.Up) { Move(-Row); }
 	if (Menu.Down) { Move(Row); }
 	if (Menu.Left) { Move(-1); }

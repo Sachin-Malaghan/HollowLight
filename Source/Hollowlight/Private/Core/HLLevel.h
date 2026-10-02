@@ -39,6 +39,11 @@ namespace HL
 	// barks at it: a nudge toward the next step, never the whole answer.
 	struct FHintDef { double X0, X1, PointX; int UntilGate; };
 
+	// A line of script shown at the top right of the screen while the child is inside [X0, X1] (and gate
+	// UntilGate, if given, is still shut): it says what the problem is, not how every step goes. Use \n
+	// for a second line. Button words: JUMP, SLIDE, WHISTLE, TAKE, USE, PULL.
+	struct FNoteDef { double X0, X1; std::string Text; int UntilGate = -1; };
+
 	// One step of the solution the autopilot follows on puzzle levels (and in the attract mode). It is
 	// what proves a level can be solved; without a script the autopilot just heads for the lamp post.
 	enum class EStepKind : uint8_t { Go, Act, Wait, WaitGate, WaitDogStay, Climb, CallDog };
@@ -93,6 +98,8 @@ namespace HL
 		std::vector<FHintDef> Hints;
 		std::vector<FSolveStep> Solution;
 		bool bDog = false;           // the dog comes along on this level
+		bool bGhost = false;         // linger here and something comes for the light; the dog can see it off
+		std::vector<FNoteDef> Notes;
 		FTheme Theme;
 	};
 

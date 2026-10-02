@@ -58,6 +58,8 @@ namespace HL
 				FLevelDef L;
 				L.Name = "The Edge of the Wood";
 				L.Subtitle = "Bring the light home.";
+				L.Notes = { { -600, 500, "Carry the lantern to the lamp post\nat the far edge of the wood." },
+				            { 1050, 1445, "The ledge is too high to jump.\nPush the crate up to it." } };
 				L.StartX = 60;
 				L.GoalX = 4700;
 				L.MinX = -800;
@@ -84,6 +86,9 @@ namespace HL
 				L.MinX = -600;
 				L.MaxX = 4300;
 				L.bDog = true;
+				L.Notes = { { -600, 450, "A stray has decided to come along.\nWHISTLE: it stays. WHISTLE again: it comes." },
+				            { 1900, 2295, "A lever works this gate.\nStand by it and press PULL.", 0 },
+				            { 2400, 2895, "The lever is on the far side,\nand the gap is dog-sized. WHISTLE.", 1 } };
 				L.Ground = { { -600, 500, 300 }, { 800, 1200, 220 }, { 1500, 3400, 300 }, { 3520, 4300, 300 } };
 				AddSlope(L, 500, 300, 800, 220);
 				AddSlope(L, 1200, 220, 1500, 300);
@@ -113,6 +118,7 @@ namespace HL
 				L.MinX = -600;
 				L.MaxX = 5400;
 				L.bDog = true;
+				L.Notes = { { 1000, 1480, "Three jaws, too wide to jump.\nLet the crate step on them first." } };
 				L.Ground = { { -600, 900, 300 }, { 1000, 2200, 300 }, { 2320, 3000, 300 }, { 3000, 3800, 230 },
 				             { 3800, 4400, 300 }, { 4520, 5400, 300 } };
 				L.Blocks = { { 5340, -400, 5400, 300 } };
@@ -135,6 +141,9 @@ namespace HL
 				L.MinX = -600;
 				L.MaxX = 4600;
 				L.bDog = true;
+				L.Notes = { { 1450, 1700, "A ladder. Hold JUMP to climb,\nSLIDE to come down." },
+				            { 2050, 2450, "A winch handle, lying in the grass.\nStand over it and press TAKE.", 0 },
+				            { 2900, 3300, "The bridge winch has lost its handle.\nBring it here and press USE.", 0 } };
 				L.Ground = { { -600, 400, 300 }, { 700, 1000, 180 }, { 1000, 1700, 300 }, { 1700, 2500, 130 },
 				             { 2500, 3300, 300 }, { 3620, 3800, 300 }, { 4100, 4600, 200 } };
 				AddSlope(L, 400, 300, 700, 180);
@@ -166,6 +175,7 @@ namespace HL
 				L.MinX = -600;
 				L.MaxX = 5700;
 				L.bDog = true;
+				L.Notes = { { 300, 800, "The water is deep and the child cannot swim.\nA crate floats." } };
 				L.Ground = { { -600, 800, 300 }, { 1010, 1900, 300 }, { 2110, 2900, 300 }, { 2900, 3600, 190 },
 				             { 3600, 4200, 300 }, { 4400, 5700, 300 } };
 				L.Blocks = { { 5640, -400, 5700, 300 } };
@@ -191,6 +201,10 @@ namespace HL
 				L.MinX = -400;
 				L.MaxX = 4200;
 				L.bDog = true;
+				L.bGhost = true;
+				L.Notes = { { 300, 895, "The door stays open only while\nsomething stands on the plate.", 0 },
+				            { 1000, 2595, "This door is jammed.\nThere is a crowbar up on the racking.", 1 },
+				            { 2640, 3395, "The dog cannot stay here for ever.\nSomething heavy could.", 2 } };
 				L.Ground = { { -400, 4200, 300 } };
 				L.Blocks = { { 1500, 120, 1900, 136 },     // racking: reached by the ladder at its near end
 				             { 3208, 288, 3220, 300 },     // a kerb: the crate stops here, on the plate
@@ -229,6 +243,10 @@ namespace HL
 				L.MinX = -600;
 				L.MaxX = 4600;
 				L.bDog = true;
+				L.bGhost = true;
+				L.Notes = { { 300, 900, "Run and press SLIDE to go under the wagon." },
+				            { 1950, 2595, "The barrier lever is inside the hut.\nOnly the dog fits. WHISTLE.", 0 },
+				            { 2640, 3295, "The swing bridge needs its handle.\nTry the flat wagon.", 1 } };
 				L.Ground = { { -600, 3300, 300 }, { 3640, 4600, 300 } };
 				L.Blocks = { { 500, 150, 900, 276 },       // box wagon on its wheels: slide under, or climb over
 				             { 1500, 100, 1900, 300 },     // loaded wagon: too tall, take the ladder
@@ -270,6 +288,10 @@ namespace HL
 				L.MinX = -600;
 				L.MaxX = 4200;
 				L.bDog = true;
+				L.bGhost = true;
+				L.Notes = { { 620, 1195, "Luggage is heavy enough to hold a plate.", 0 },
+				            { 1235, 1495, "One more plate, and nothing left to push.\nWHISTLE: the dog can stay.", 1 },
+				            { 2620, 2935, "A locked gate, and somewhere near, a crowbar.", 2 } };
 				L.Ground = { { -600, 600, 300 }, { 600, 1700, 240 }, { 1900, 2300, 120 }, { 2500, 2600, 240 },
 				             { 2600, 3000, 300 }, { 3000, 4200, 130 } };
 				AddSlope(L, 1700, 240, 1900, 120);
@@ -307,6 +329,9 @@ namespace HL
 				L.MinX = -600;
 				L.MaxX = 5500;
 				L.bDog = true;
+				L.Notes = { { 150, 700, "Jump at a rock face: the child catches\nthe ledge and pulls up." },
+				            { 1020, 1500, "Scree. Nobody can stand on it:\nyou will slide. JUMP still works." },
+				            { 3470, 3800, "A chasm splits the slope ahead.\nJUMP before the edge." } };
 				L.Ground = { { -600, 400, 300 }, { 400, 700, 190 }, { 700, 1000, 80 }, { 1000, 1500, -100 },
 				             { 2000, 2700, 300 }, { 2700, 2950, 190 }, { 2950, 3200, 80 }, { 3200, 3450, -30 },
 				             { 3450, 3800, -140 }, { 4500, 5500, 300 } };
@@ -338,6 +363,7 @@ namespace HL
 				L.MinX = -600;
 				L.MaxX = 6400;
 				L.bDog = true;
+				L.bGhost = true;
 				L.Ground = { { -600, 700, 300 }, { 820, 1500, 300 }, { 1500, 2100, 186 }, { 2300, 3100, 300 },
 				             { 3310, 3900, 300 }, { 4400, 4900, 300 }, { 5400, 6400, 300 } };
 				L.Blocks = { { 6340, -400, 6400, 300 } };
