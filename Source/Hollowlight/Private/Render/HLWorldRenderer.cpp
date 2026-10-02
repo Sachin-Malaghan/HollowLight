@@ -105,6 +105,7 @@ FVector2D FHLWorldRenderer::LanternPos(const FSim& Sim, double PlayerX, double P
 		case EPose::Stunned: return FVector2D(PlayerX + P.Facing * 9.0, PlayerY - 8.0);
 		case EPose::Roll: return FVector2D(PlayerX, PlayerY - 11.0);
 		case EPose::Hang:
+		case EPose::Ladder:
 		case EPose::Climb: return FVector2D(PlayerX - P.Facing * 7.0, PlayerY - 12.0);    // slung at the hip
 		default: break;
 		}
@@ -199,6 +200,11 @@ void FHLWorldRenderer::DrawTreeLayer(FHLDraw& D, const FHLRenderView& V, int Lay
 	const FLinearColor Col = Shade(kLayerColor[Layer], T.Brightness * (Layer == 3 ? 1.0 : 1.0), Warm * 0.6);
 	const double OX = V.CamX * Speed, OY = V.CamY * Speed;
 	D.SetTransform(V.Scale, OX, OY);
+	if (T.Setting != ESetting::Forest)
+	{
+		DrawBuiltLayer(D, V, Layer, Col, OX, OY);
+		return;
+	}
 	const double X0 = OX - 120, X1 = OX + V.ViewW + 120;
 	const double Bottom = OY + kViewHeight + 20;
 
@@ -296,9 +302,16 @@ void FHLWorldRenderer::DrawGroundTop(FHLDraw& D, const FHLRenderView& V, double 
 	// Jagged grass fringe: blades seeded by their world position so they never change.
 	const double A = FMath::Max(X0, VisibleX0), B = FMath::Min(X1, VisibleX1);
 	if (A >= B) { return; }
+	const ESetting Setting = V.Sim->Level->Theme.Setting;
+	if (Setting == ESetting::Warehouse || Setting == ESetting::Station)
+	{
+		// A laid floor: just a worn edge catching the light.
+		D.Line(A, Top + 0.4, B, Top + 0.4, 0.8, HLGrey(0.4f, 0.5f));
+		return;
+	}
 	const double Step = 3.2;
 	const double Start = FMath::FloorToDouble(A / Step) * Step;
-	for (double X = Start; X < B; X += Step)
+	for (double X = Start; X < B && Setting == ESetting::Forest; X += Step)
 	{
 		if (X < X0 || X + Step > X1 + 0.01) { continue; }
 		// The grass is trampled flat around a jaw trap, so its teeth stand clear against the mist.
@@ -340,11 +353,11 @@ void FHLWorldRenderer::DrawPlayLayer(FHLDraw& D, const FHLRenderView& V)
 	for (int32 I = 0; I < (int32)L.Ground.size(); ++I)
 	{
 		const FGroundDef& G = L.Ground[I];
-		if (G.X1 < VisibleX0 || G.X0 > VisibleX1) { continue; }
+		if (G.bStep || G.X1 < VisibleX0 || G.X0 > VisibleX1) { continue; }
 		D.Rect(G.X0, G.Top, G.X1, Bottom, Black);
 		DrawGroundTop(D, V, G.X0, G.X1, G.Top, L.Theme.Seed * 17u + (uint32)I);
 		// Ragged pit walls: roots and stones poking out of the sides.
-		for (int Side = 0; Side < 2; ++Side)
+		for (int Side = 0; Side < 2 && L.Theme.Setting == ESetting::Forest; ++Side)
 		{
 			const double EX = Side == 0 ? G.X0 : G.X1;
 			const double Dir = Side == 0 ? -1.0 : 1.0;
@@ -368,10 +381,45 @@ void FHLWorldRenderer::DrawPlayLayer(FHLDraw& D, const FHLRenderView& V)
 		}
 	}
 
+	DrawSlopes(D, V);
+
+	const bool bBuilt = L.Theme.Setting != ESetting::Forest;
 	for (int32 I = 0; I < (int32)L.Blocks.size(); ++I)
 	{
 		const FBlockDef& B = L.Blocks[I];
 		if (B.X1 < VisibleX0 || B.X0 > VisibleX1) { continue; }
+		if (bBuilt)
+		{
+			// Walls, racking, wagons: plain black slabs with a little ironwork.
+			const double GroundY = S.SurfaceAt((B.X0 + B.X1) * 0.5, B.Y1 - 1.0);
+			const double W = B.X1 - B.X0;
+			D.Rect(B.X0, B.Y0 < 0 ? V.CamY - 40 : B.Y0, B.X1, FMath::Min(B.Y1, Bottom), Black);
+			if (B.Y0 >= 0 && W > 30) { D.Line(B.X0 + 2, B.Y0 + 0.5, B.X1 - 2, B.Y0 + 0.5, 0.8, HLGrey(0.4f, 0.5f)); }
+			if (B.Y0 >= 0 && W >= 200 && GroundY - B.Y1 > 4)
+			{
+				if (L.Theme.Setting == ESetting::Warehouse)
+				{
+					// racking: uprights and a brace
+					D.Rect(B.X0 + 14, B.Y1, B.X0 + 18, GroundY, Black);
+					D.Rect(B.X1 - 6, B.Y1, B.X1 - 2, GroundY, Black);
+					D.Line(B.X1 - 4, B.Y1, B.X1 - 60, GroundY, 2.0, Black);
+				}
+				else
+				{
+					// a wagon up on its wheels, buffers at each end
+					const double R = (GroundY - B.Y1) * 0.5 + 6.0;
+					for (int K = 0; K < 2; ++K)
+					{
+						const double WX = K == 0 ? B.X0 + 46 : B.X1 - 46;
+						D.Circle(WX, GroundY - R, R, Black, 20);
+						D.Ring(WX, GroundY - R, R * 0.45, R * 0.55, HLGrey(0.4f, 0.5f), HLGrey(0.4f, 0.5f), 16);
+					}
+					D.Rect(B.X0 - 10, B.Y1 - 12, B.X0, B.Y1 - 6, Black);
+					D.Rect(B.X1, B.Y1 - 12, B.X1 + 10, B.Y1 - 6, Black);
+				}
+			}
+			continue;
+		}
 		if (B.Y0 < 0)
 		{
 			// The end wall is an enormous trunk.
@@ -405,7 +453,9 @@ void FHLWorldRenderer::DrawPlayLayer(FHLDraw& D, const FHLRenderView& V)
 		D.Curve(FVector2D(C.X + 18, C.Y), FVector2D(C.X + 28, C.Y - 10), FVector2D(C.X + 38, C.Y), 2.0, 2.0, Black, 6);
 	}
 
+	DrawMechanisms(D, V);
 	DrawTraps(D, V);
+	DrawDog(D, V);
 	DrawPlayer(D, V);
 }
 
@@ -660,7 +710,7 @@ void FHLWorldRenderer::DrawPlayer(FHLDraw& D, const FHLRenderView& V)
 	const double Speed = FMath::Clamp(FMath::Abs(P.VX) / kRunSpeed, 0.0, 1.25);
 	const bool bDead = S.Phase == EPhase::Dying;
 	const EPose Pose = bDead ? EPose::Stand : P.Pose;
-	const bool bAir = !P.Grounded && !bDead && P.Hang == 0;
+	const bool bAir = !P.Grounded && !bDead && P.Hang == 0 && Pose != EPose::Ladder && P.AirTime > 0.05;
 	const double Ph = P.RunPhase;
 	const double Wind = S.Level->Theme.Wind;
 	const FVector2D L = LanternPos(S, X, Y, V.Time);
@@ -726,6 +776,17 @@ void FHLWorldRenderer::DrawPlayer(FHLDraw& D, const FHLRenderView& V)
 		Knee[1] = FVector2D(X - F * 1.5 + Sway, Y - 8.5);                        Foot[1] = FVector2D(X - F * 2.5 + Sway * 1.5, Y);
 		BackHand = FVector2D(X + F * 8.0, FMath::Min(P.HangLedgeY + (Y - P.Y) - 1.0, Shoulder.Y - 4.0));   // on the ledge
 		bLanternInHand = false;   // slung at the hip while both hands are busy
+	}
+	else if (Pose == EPose::Ladder)
+	{
+		// Hand over hand, facing the rungs.
+		const double C = FMath::Sin(P.LadderPhase) * 3.0;
+		Hip = FVector2D(X - F * 3.0, Y - 17.0);
+		Shoulder = FVector2D(X - F * 1.0, Y - 33.0);
+		Knee[0] = FVector2D(X + F * 3.5, Y - 11.0 - C);  Foot[0] = FVector2D(X + F * 1.0, Y - 3.0 - C);
+		Knee[1] = FVector2D(X + F * 2.5, Y - 9.0 + C);   Foot[1] = FVector2D(X, Y - 2.0 + C);
+		BackHand = FVector2D(X + F * 6.0, Y - 40.0 + C);
+		bLanternInHand = false;
 	}
 	else
 	{
@@ -826,6 +887,475 @@ void FHLWorldRenderer::DrawPlayer(FHLDraw& D, const FHLRenderView& V)
 	}
 }
 
+// -------------------------------------------------------------------------------------------------
+// 2.0: hillsides, ladders, doors, levers, plates, tools, the dog, and the built settings
+
+void FHLWorldRenderer::DrawSlopes(FHLDraw& D, const FHLRenderView& V)
+{
+	const FLevelDef& L = *V.Sim->Level;
+	const double Bottom = V.CamY + kViewHeight + 30;
+	for (int32 I = 0; I < (int32)L.Slopes.size(); ++I)
+	{
+		const FSlopeDef& Sl = L.Slopes[I];
+		if (Sl.X1 < VisibleX0 || Sl.X0 > VisibleX1) { continue; }
+		// One smooth hillside over the stair-steps the sim walks on.
+		D.Quad(FVector2D(Sl.X0, Sl.Y0 - 0.5), FVector2D(Sl.X1, Sl.Y1 - 0.5), FVector2D(Sl.X1, Bottom), FVector2D(Sl.X0, Bottom), Black);
+		if (L.Theme.Setting != ESetting::Forest) { continue; }
+		const double Step = 3.2;
+		for (double X = FMath::Max(Sl.X0, VisibleX0); X < FMath::Min(Sl.X1, VisibleX1); X += Step)
+		{
+			const double T = (X - Sl.X0) / (Sl.X1 - Sl.X0);
+			const double Top = FMath::Lerp(Sl.Y0, Sl.Y1, T);
+			const uint32 S = Hash32(L.Theme.Seed * 29u + (uint32)I, (uint32)(int32)FMath::FloorToInt(X * 10.0) + 5000000u);
+			const double H = HashRange(S, 1, 2.5, 9.0);
+			const double Lean = HashRange(S, 3, -2.5, 2.5) + FMath::Sin(V.Time * 1.3 + X * 0.05) * 0.6;
+			const double W = HashRange(S, 4, 2.4, 4.4);
+			D.Tri(X, Top + 2.0, X + W, Top + 2.0, X + W * 0.5 + Lean, Top - H, Black);
+		}
+	}
+}
+
+void FHLWorldRenderer::DrawMechanisms(FHLDraw& D, const FHLRenderView& V)
+{
+	const FSim& S = *V.Sim;
+	const FLevelDef& L = *S.Level;
+	const FLinearColor Steel = HLGrey(0.6f, 0.75f);
+	const FPlayer& P = S.P;
+
+	// Ladders: two rails and rungs.
+	for (const FLadderDef& Ld : L.Ladders)
+	{
+		if (Ld.X < VisibleX0 - 20 || Ld.X > VisibleX1 + 20) { continue; }
+		D.Line(Ld.X - 6.5, Ld.Top - 8, Ld.X - 6.5, Ld.Bottom, 2.0, Black);
+		D.Line(Ld.X + 6.5, Ld.Top - 8, Ld.X + 6.5, Ld.Bottom, 2.0, Black);
+		for (double Y = Ld.Bottom - 10; Y > Ld.Top - 4; Y -= 12)
+		{
+			D.Line(Ld.X - 6.5, Y, Ld.X + 6.5, Y, 1.6, Black);
+			D.Line(Ld.X - 5.0, Y - 0.9, Ld.X + 5.0, Y - 0.9, 0.5, HLGrey(0.5f, 0.45f));
+		}
+	}
+
+	// Doors and bridges.
+	for (int32 I = 0; I < (int32)L.Gates.size(); ++I)
+	{
+		const FGateDef& G = L.Gates[I];
+		if (G.X1 < VisibleX0 - 40 || G.X0 > VisibleX1 + 40) { continue; }
+		const double A = S.Gates[I].Amount;
+		if (G.bBridge)
+		{
+			// A deck hinged at its near end: it stands raised until the winch lets it down.
+			const double Len = G.X1 - G.X0;
+			const double Ang = (1.0 - A) * 1.25;
+			const FVector2D Hinge(G.X0, G.Y0 + 5.0);
+			const FVector2D Tip = Hinge + FVector2D(FMath::Cos(Ang), -FMath::Sin(Ang)) * Len;
+			D.Line(Hinge.X, Hinge.Y, Tip.X, Tip.Y, 11.0, Black);
+			D.Line(Hinge.X, Hinge.Y - 5.2, Tip.X, Tip.Y - 5.2, 0.8, Steel);
+			// tower and chain
+			D.Rect(G.X0 - 14, G.Y0 - 96, G.X0 - 6, G.Y0, Black);
+			D.Line(G.X0 - 10, G.Y0 - 92, Hinge.X + (Tip.X - Hinge.X) * 0.7, Hinge.Y + (Tip.Y - Hinge.Y) * 0.7 - 4, 1.0, Black);
+			continue;
+		}
+		const FRect B = S.GateBox(I);
+		// frame: two posts and a lintel the door slides up behind
+		D.Rect(G.X0 - 5, G.Y0 - 14, G.X0, G.Y1, Black);
+		D.Rect(G.X1, G.Y0 - 14, G.X1 + 5, G.Y1, Black);
+		D.Rect(G.X0 - 9, G.Y0 - 20, G.X1 + 9, G.Y0 - 12, Black);
+		D.Rect(B.X0, B.Y0, B.X1, B.Y1, Black);
+		D.Line(B.X0 + 1.5, B.Y1 - 0.8, B.X1 - 1.5, B.Y1 - 0.8, 0.9, Steel);
+		for (double Y = B.Y0 + 14; Y < B.Y1 - 6; Y += 26)
+		{
+			D.Line(B.X0 + 3, Y, B.X1 - 3, Y, 0.6, HLGrey(0.35f, 0.5f));   // plank seams
+		}
+	}
+
+	// Pressure plates.
+	for (int32 I = 0; I < (int32)L.Plates.size(); ++I)
+	{
+		const FPlateDef& Pd = L.Plates[I];
+		if (Pd.X1 < VisibleX0 || Pd.X0 > VisibleX1) { continue; }
+		const double H = S.PlateDown[I] ? 1.2 : 4.0;
+		D.Rect(Pd.X0, Pd.Y - H, Pd.X1, Pd.Y + 1, Black);
+		D.Line(Pd.X0 + 1, Pd.Y - H, Pd.X1 - 1, Pd.Y - H, 0.9, Steel);
+		D.Tri(Pd.X0 - 6, Pd.Y, Pd.X0, Pd.Y - H, Pd.X0, Pd.Y, Black);
+		D.Tri(Pd.X1 + 6, Pd.Y, Pd.X1, Pd.Y - H, Pd.X1, Pd.Y, Black);
+	}
+
+	// Levers: a base and an arm thrown one way or the other.
+	for (int32 I = 0; I < (int32)L.Levers.size(); ++I)
+	{
+		const FLeverDef& Lv = L.Levers[I];
+		if (Lv.X < VisibleX0 - 20 || Lv.X > VisibleX1 + 20) { continue; }
+		const double Ang = S.LeverOn[I] ? 0.6 : -0.6;
+		const FVector2D Pivot(Lv.X, Lv.Y - 6);
+		const FVector2D Knob = Pivot + FVector2D(FMath::Sin(Ang), -FMath::Cos(Ang)) * 24.0;
+		D.Rect(Lv.X - 9, Lv.Y - 7, Lv.X + 9, Lv.Y + 1, Black);
+		D.Circle(Pivot.X, Pivot.Y, 4.5, Black, 12);
+		D.Line(Pivot.X, Pivot.Y, Knob.X, Knob.Y, 2.6, Black);
+		D.Circle(Knob.X, Knob.Y, 3.6, Black, 12);
+		D.Line(Pivot.X + 1.2, Pivot.Y, Knob.X + 1.2, Knob.Y, 0.6, Steel);
+	}
+
+	// Sockets: a winch post for the handle, a jammed hasp for the crowbar.
+	for (int32 I = 0; I < (int32)L.Sockets.size(); ++I)
+	{
+		const FSocketDef& So = L.Sockets[I];
+		if (So.X < VisibleX0 - 30 || So.X > VisibleX1 + 30) { continue; }
+		if (So.Kind == EItem::Handle)
+		{
+			D.Rect(So.X - 4, So.Y - 34, So.X + 4, So.Y, Black);
+			D.Rect(So.X - 10, So.Y - 4, So.X + 10, So.Y + 1, Black);
+			D.Circle(So.X, So.Y - 30, 9.0, Black, 16);
+			D.Ring(So.X, So.Y - 30, 5.0, 6.0, Steel, Steel, 16);
+			if (S.SocketUsed[I])
+			{
+				const double Turn = 0.9;
+				D.Line(So.X, So.Y - 30, So.X + FMath::Cos(Turn) * 14, So.Y - 30 + FMath::Sin(Turn) * 14, 2.4, Black);
+				D.Circle(So.X + FMath::Cos(Turn) * 14, So.Y - 30 + FMath::Sin(Turn) * 14, 2.6, Black, 8);
+			}
+		}
+		else
+		{
+			D.Rect(So.X - 3, So.Y - 40, So.X + 3, So.Y, Black);
+			D.Rect(So.X - 7, So.Y - 31, So.X + 7, So.Y - 23, Black);
+			D.Line(So.X - 6, So.Y - 27, So.X + 6, So.Y - 27, 0.8, Steel);
+		}
+	}
+
+	// Tools: lying on the ground, or slung on the child's back.
+	for (int32 I = 0; I < (int32)S.Items.size(); ++I)
+	{
+		const FItem& It = S.Items[I];
+		if (It.Used) { continue; }
+		FVector2D O(It.X, It.Y - 3);
+		double Ang = 0.15;
+		if (It.Carried)
+		{
+			O = FVector2D(V.PlayerX - P.Facing * 6.0, V.PlayerY - 26.0);
+			Ang = 1.1 * P.Facing;
+		}
+		else if (It.X < VisibleX0 - 30 || It.X > VisibleX1 + 30) { continue; }
+		const FVector2D Ax(FMath::Cos(Ang), FMath::Sin(Ang));
+		const FVector2D Up(-Ax.Y, Ax.X);
+		if (L.Items[I].Kind == EItem::Handle)
+		{
+			// a crank: shaft, arm, grip
+			const FVector2D A = O - Ax * 9.0, B = O + Ax * 5.0, C = B - Up * 9.0, E = C + Ax * 7.0;
+			D.Line(A.X, A.Y, B.X, B.Y, 2.6, Black);
+			D.Line(B.X, B.Y, C.X, C.Y, 2.6, Black);
+			D.Line(C.X, C.Y, E.X, E.Y, 3.4, Black);
+			D.Circle(A.X, A.Y, 2.6, Black, 8);
+			D.Line(A.X, A.Y - 1.0, B.X, B.Y - 1.0, 0.6, Steel);
+		}
+		else
+		{
+			// a crowbar: long bar, hooked end
+			const FVector2D A = O - Ax * 13.0, B = O + Ax * 11.0, C = B - Up * 5.0 + Ax * 3.0;
+			D.Line(A.X, A.Y, B.X, B.Y, 2.2, Black);
+			D.Line(B.X, B.Y, C.X, C.Y, 2.2, Black);
+			D.Line(A.X, A.Y - 0.9, B.X, B.Y - 0.9, 0.6, Steel);
+		}
+	}
+
+	// A small pulse over whatever ACT would use right now.
+	if (S.Phase == EPhase::Playing && P.Grounded && !V.bAttract)
+	{
+		FVector2D At(0, 0);
+		bool bShow = false;
+		for (int32 I = 0; I < (int32)L.Sockets.size() && !bShow; ++I)
+		{
+			const FSocketDef& So = L.Sockets[I];
+			if (!S.SocketUsed[I] && P.Carry >= 0 && L.Items[P.Carry].Kind == So.Kind && FMath::Abs(P.X - So.X) < 28.0 && FMath::Abs(P.Y - So.Y) < 8.0)
+			{
+				At = FVector2D(So.X, So.Y - 52);
+				bShow = true;
+			}
+		}
+		for (int32 I = 0; I < (int32)S.Items.size() && !bShow && P.Carry < 0; ++I)
+		{
+			if (!S.Items[I].Used && !S.Items[I].Carried && FMath::Abs(P.X - S.Items[I].X) < 26.0 && FMath::Abs(P.Y - S.Items[I].Y) < 8.0)
+			{
+				At = FVector2D(S.Items[I].X, S.Items[I].Y - 22);
+				bShow = true;
+			}
+		}
+		for (int32 I = 0; I < (int32)L.Levers.size() && !bShow; ++I)
+		{
+			if (FMath::Abs(P.X - L.Levers[I].X) < 26.0 && FMath::Abs(P.Y - L.Levers[I].Y) < 8.0)
+			{
+				At = FVector2D(L.Levers[I].X, L.Levers[I].Y - 44);
+				bShow = true;
+			}
+		}
+		if (bShow)
+		{
+			const double Pulse = 0.5 + 0.5 * FMath::Sin(V.Time * 5.0);
+			const FLinearColor C(1, 1, 1, (float)(0.25 + 0.3 * Pulse));
+			D.Ring(At.X, At.Y, 4.0 + Pulse * 1.5, 5.2 + Pulse * 1.5, C, C, 20);
+		}
+	}
+}
+
+void FHLWorldRenderer::DrawDog(FHLDraw& D, const FHLRenderView& V)
+{
+	const FSim& S = *V.Sim;
+	const FDog& G = S.Dog;
+	if (!G.Active) { return; }
+	const double X = G.X, Y = G.Y, F = G.Facing;
+	const double Speed = FMath::Clamp(FMath::Abs(G.VX) / 260.0, 0.0, 1.0);
+	const bool bSit = G.Mode == EDogMode::Stay || (G.Grounded && G.SitTime > 0.7 && G.Mode != EDogMode::Point);
+	const bool bPoint = G.Mode == EDogMode::Point && Speed < 0.1;
+	const double Ph = G.RunPhase;
+
+	// Body: chest forward, haunches back; sitting drops the haunches.
+	const FVector2D Chest(X + F * 6.0, Y - 10.5 - (bSit ? 2.5 : 0.0));
+	const FVector2D Haunch(X - F * 7.0, Y - (bSit ? 6.0 : 10.0));
+	D.Line(Haunch.X, Haunch.Y, Chest.X, Chest.Y, 8.5, Black);
+	D.Circle(Chest.X, Chest.Y, 4.6, Black, 10);
+	D.Circle(Haunch.X, Haunch.Y, 4.6, Black, 10);
+
+	// Legs
+	for (int Leg = 0; Leg < 4; ++Leg)
+	{
+		const bool bFront = Leg < 2;
+		const FVector2D Top = bFront ? Chest + FVector2D(-F * 1.0, 2.0) : Haunch + FVector2D(F * 1.0, 2.0);
+		double Sw = G.Grounded ? FMath::Sin(Ph + Leg * 1.7) * 5.5 * Speed : (bFront ? 5.0 : -5.0);
+		FVector2D Foot(Top.X + F * Sw, Y - 0.5);
+		if (bSit && !bFront) { Foot = FVector2D(Haunch.X + F * 5.0, Y - 0.5); }
+		if (bPoint && Leg == 0) { Foot = FVector2D(Top.X + F * 5.0, Y - 5.0); }   // one paw lifted, pointing
+		D.Line(Top.X, Top.Y, Foot.X, Foot.Y, 2.4, Black);
+	}
+
+	// Head, snout, ears
+	const double Nod = bPoint ? -1.5 : FMath::Sin(Ph * 0.5) * 0.8 * Speed;
+	const FVector2D Head(Chest.X + F * 6.0, Chest.Y - 5.5 + Nod);
+	D.Line(Chest.X, Chest.Y - 1.5, Head.X, Head.Y, 5.0, Black);
+	D.Circle(Head.X, Head.Y, 4.4, Black, 12);
+	D.Quad(FVector2D(Head.X + F * 2.0, Head.Y - 2.2), FVector2D(Head.X + F * 9.0, Head.Y - 0.6),
+	       FVector2D(Head.X + F * 9.0, Head.Y + 2.0), FVector2D(Head.X + F * 2.0, Head.Y + 2.6), Black);
+	D.Tri(Head.X - F * 2.5, Head.Y - 2.5, Head.X + F * 0.5, Head.Y - 3.5, Head.X - F * 2.0, Head.Y - 9.5, Black);
+	D.Tri(Head.X + F * 0.5, Head.Y - 3.5, Head.X + F * 2.8, Head.Y - 2.8, Head.X + F * 1.5, Head.Y - 8.5, Black);
+
+	// Tail: wags when the child is near, held out straight when pointing.
+	{
+		const double Wag = bPoint ? 0.0 : FMath::Sin(V.Time * (bSit ? 9.0 : 14.0)) * (bSit ? 4.0 : 2.5);
+		const FVector2D Root = Haunch + FVector2D(-F * 3.5, -2.5);
+		const FVector2D Tip = Root + FVector2D(-F * (bPoint ? 12.0 : 8.0), bPoint ? -1.0 : -8.0 + Wag);
+		D.Curve(Root, (Root + Tip) * 0.5 + FVector2D(-F * 2.0, 1.5), Tip, 2.6, 0.9, Black, 5);
+	}
+
+	// A bark: three short strokes fanning from the mouth.
+	if (G.BarkFlash > 0)
+	{
+		const float A = (float)FMath::Clamp(G.BarkFlash / 0.3, 0.0, 1.0);
+		const FLinearColor C = HLGrey(0.85f, 0.7f * A);
+		const FVector2D M(Head.X + F * 11.0, Head.Y + 0.5);
+		for (int K = -1; K <= 1; ++K)
+		{
+			const double Ang = K * 0.45;
+			const FVector2D Dir(F * FMath::Cos(Ang), FMath::Sin(Ang));
+			const double R0 = 3.0 + (1.0 - A) * 6.0;
+			D.Line(M.X + Dir.X * R0, M.Y + Dir.Y * R0, M.X + Dir.X * (R0 + 5.0), M.Y + Dir.Y * (R0 + 5.0), 1.1, C);
+		}
+	}
+}
+
+// What stands behind the play layer in the built settings (the forest keeps its trees).
+void FHLWorldRenderer::DrawBuiltLayer(FHLDraw& D, const FHLRenderView& V, int Layer, const FLinearColor& Col, double OX, double OY)
+{
+	const FTheme& T = V.Sim->Level->Theme;
+	const double X0 = OX - 160, X1 = OX + V.ViewW + 160;
+	const double Bottom = OY + kViewHeight + 20;
+	const double Floor = kLayerHorizon[Layer];
+	D.Rect(X0, Floor, X1, Bottom, Col);
+
+	if (T.Setting == ESetting::Warehouse)
+	{
+		if (Layer == 0)
+		{
+			// The far wall, with tall windows the grey daylight falls through.
+			const double Cell = 230;
+			for (int32 C = FMath::FloorToInt(X0 / Cell); C <= FMath::FloorToInt(X1 / Cell); ++C)
+			{
+				const double X = C * Cell;
+				D.Rect(X, -200, X + 70, Floor, Col);                 // pier between windows
+				D.Rect(X + 70, -200, X + Cell, 40, Col);             // wall above the window
+				D.Rect(X + 70, 210, X + Cell, Floor, Col);           // wall below it
+				D.Rect(X + 147, 40, X + 153, 210, Col);              // glazing bars
+				D.Rect(X + 70, 122, X + Cell, 128, Col);
+			}
+		}
+		else if (Layer == 1)
+		{
+			// Iron columns and the roof trusses they carry.
+			const double Cell = 260;
+			D.Rect(X0, 22, X1, 32, Col);
+			for (int32 C = FMath::FloorToInt(X0 / Cell); C <= FMath::FloorToInt(X1 / Cell); ++C)
+			{
+				const double X = C * Cell + 40;
+				D.Rect(X - 6, 22, X + 6, Floor, Col);
+				D.Line(X, 32, X + Cell * 0.5, -40, 5, Col);
+				D.Line(X + Cell, 32, X + Cell * 0.5, -40, 5, Col);
+				D.Line(X + Cell * 0.5, 32, X + Cell * 0.5, -40, 4, Col);
+			}
+		}
+		else if (Layer == 2)
+		{
+			// Racking stacked with crates.
+			const double Cell = 340;
+			for (int32 C = FMath::FloorToInt(X0 / Cell); C <= FMath::FloorToInt(X1 / Cell); ++C)
+			{
+				const uint32 S = Hash32(T.Seed * 211u + 5u, (uint32)(C + 400000));
+				if (Hash01(S, 1) < 0.3) { continue; }
+				const double X = C * Cell + Hash01(S, 2) * 80;
+				const double W = 210, H = HashRange(S, 3, 150, 210);
+				D.Rect(X, Floor - H, X + 5, Floor, Col);
+				D.Rect(X + W - 5, Floor - H, X + W, Floor, Col);
+				for (int Shelf = 0; Shelf < 3; ++Shelf)
+				{
+					const double SY = Floor - H + Shelf * (H / 3.0) + 8;
+					D.Rect(X, SY, X + W, SY + 5, Col);
+					for (int B = 0; B < 4; ++B)
+					{
+						if (Hash01(S, 10 + Shelf * 4 + B) < 0.35) { continue; }
+						const double BW = HashRange(S, 30 + Shelf * 4 + B, 26, 46), BH = HashRange(S, 50 + Shelf * 4 + B, 18, 34);
+						D.Rect(X + 10 + B * 50, SY - BH, X + 10 + B * 50 + BW, SY, Col);
+					}
+				}
+			}
+		}
+		else
+		{
+			// Nearer: chains and lamp shades hanging from the roof.
+			const double Cell = 420;
+			for (int32 C = FMath::FloorToInt(X0 / Cell); C <= FMath::FloorToInt(X1 / Cell); ++C)
+			{
+				const uint32 S = Hash32(T.Seed * 97u + 9u, (uint32)(C + 500000));
+				const double X = C * Cell + Hash01(S, 1) * 200;
+				const double Len = HashRange(S, 2, 60, 130);
+				const double Sway = FMath::Sin(V.Time * 0.7 + C) * 3.0;
+				D.Line(X, -60, X + Sway, Len, 1.4, Col);
+				D.Tri(X + Sway - 16, Len + 12, X + Sway + 16, Len + 12, X + Sway, Len - 4, Col);
+			}
+		}
+		return;
+	}
+
+	// Railway yard and station.
+	const bool bStation = T.Setting == ESetting::Station;
+	if (Layer == 0)
+	{
+		// A low skyline: sheds, a water tower, chimneys.
+		const double Cell = 300;
+		for (int32 C = FMath::FloorToInt(X0 / Cell); C <= FMath::FloorToInt(X1 / Cell); ++C)
+		{
+			const uint32 S = Hash32(T.Seed * 131u + 1u, (uint32)(C + 600000));
+			const double X = C * Cell + Hash01(S, 1) * 120;
+			const double W = HashRange(S, 2, 90, 170), H = HashRange(S, 3, 36, 78);
+			D.Rect(X, Floor - H, X + W, Floor, Col);
+			D.Tri(X - 6, Floor - H, X + W + 6, Floor - H, X + W * 0.5, Floor - H - 22, Col);
+			if (Hash01(S, 4) < 0.4)
+			{
+				const double TX = X + W + 50;
+				D.Rect(TX - 3, Floor - 92, TX + 3, Floor, Col);                 // water tower
+				D.Rect(TX - 20, Floor - 124, TX + 20, Floor - 92, Col);
+				D.Tri(TX - 22, Floor - 124, TX + 22, Floor - 124, TX, Floor - 138, Col);
+			}
+		}
+	}
+	else if (Layer == 1)
+	{
+		// Telegraph poles and their sagging wires.
+		const double Cell = 250;
+		for (int32 C = FMath::FloorToInt(X0 / Cell) - 1; C <= FMath::FloorToInt(X1 / Cell); ++C)
+		{
+			const double X = C * Cell + 60;
+			D.Rect(X - 2.5, 70, X + 2.5, Floor, Col);
+			D.Rect(X - 22, 84, X + 22, 88, Col);
+			D.Rect(X - 16, 100, X + 16, 103, Col);
+			for (int Wire = -1; Wire <= 1; Wire += 2)
+			{
+				D.Curve(FVector2D(X + Wire * 20, 84), FVector2D(X + Cell * 0.5, 112), FVector2D(X + Cell + Wire * 20, 84), 1.0, 1.0, Col, 8);
+			}
+		}
+	}
+	else if (Layer == 2)
+	{
+		if (bStation)
+		{
+			// The station building: a long wall of arched windows and a clock.
+			const double Cell = 190;
+			D.Rect(X0, 96, X1, Floor, Col);
+			D.Rect(X0, 84, X1, 96, Col);
+			for (int32 C = FMath::FloorToInt(X0 / Cell); C <= FMath::FloorToInt(X1 / Cell); ++C)
+			{
+				const double X = C * Cell + 50;
+				const FLinearColor Glass = HLGrey(0.5f, 0.35f);
+				D.Rect(X, 150, X + 60, 250, Glass);
+				D.Ellipse(X + 30, 150, 30, 26, Glass, 14);
+				D.Rect(X + 28.5, 126, X + 31.5, 250, Col);
+			}
+		}
+		else
+		{
+			// Wagons standing on a far siding.
+			const double Cell = 420;
+			for (int32 C = FMath::FloorToInt(X0 / Cell); C <= FMath::FloorToInt(X1 / Cell); ++C)
+			{
+				const uint32 S = Hash32(T.Seed * 173u + 3u, (uint32)(C + 700000));
+				if (Hash01(S, 1) < 0.25) { continue; }
+				const double X = C * Cell + Hash01(S, 2) * 120;
+				const double W = HashRange(S, 3, 170, 240), H = HashRange(S, 4, 44, 70);
+				D.Rect(X, Floor - H - 12, X + W, Floor - 12, Col);
+				D.Circle(X + 26, Floor - 7, 8, Col, 12);
+				D.Circle(X + W - 26, Floor - 7, 8, Col, 12);
+				D.Rect(X + W, Floor - 22, X + W + 30, Floor - 18, Col);
+			}
+			// a signal mast
+			const double SCell = 900;
+			for (int32 C = FMath::FloorToInt(X0 / SCell); C <= FMath::FloorToInt(X1 / SCell); ++C)
+			{
+				const double X = C * SCell + 300;
+				D.Rect(X - 2, 110, X + 2, Floor, Col);
+				D.Quad(FVector2D(X, 116), FVector2D(X + 34, 104), FVector2D(X + 34, 112), FVector2D(X, 124), Col);
+			}
+		}
+	}
+	else
+	{
+		if (bStation)
+		{
+			// The platform canopy: columns, a roof edge with a valance, hanging lamps.
+			const double Cell = 210;
+			D.Rect(X0, 36, X1, 50, Col);
+			for (double X = FMath::FloorToDouble(X0 / 14.0) * 14.0; X < X1; X += 14.0)
+			{
+				D.Tri(X, 50, X + 14, 50, X + 7, 60, Col);
+			}
+			for (int32 C = FMath::FloorToInt(X0 / Cell); C <= FMath::FloorToInt(X1 / Cell); ++C)
+			{
+				const double X = C * Cell + 30;
+				D.Rect(X - 4, 50, X + 4, Floor, Col);
+				D.Curve(FVector2D(X, 96), FVector2D(X + 20, 60), FVector2D(X + 46, 50), 3.5, 2.0, Col, 6);
+				D.Curve(FVector2D(X, 96), FVector2D(X - 20, 60), FVector2D(X - 46, 50), 3.5, 2.0, Col, 6);
+				D.Line(X + Cell * 0.5, 50, X + Cell * 0.5, 84, 1.2, Col);
+				D.Ellipse(X + Cell * 0.5, 90, 8, 6, Col, 12);
+			}
+		}
+		else
+		{
+			// Lineside fence posts and wire.
+			const double Cell = 64;
+			for (int32 C = FMath::FloorToInt(X0 / Cell); C <= FMath::FloorToInt(X1 / Cell); ++C)
+			{
+				const double X = C * Cell;
+				D.Rect(X - 2, Floor - 30, X + 2, Floor, Col);
+			}
+			D.Rect(X0, Floor - 24, X1, Floor - 22.5, Col);
+			D.Rect(X0, Floor - 13, X1, Floor - 11.5, Col);
+		}
+	}
+}
+
 void FHLWorldRenderer::DrawForeground(FHLDraw& D, const FHLRenderView& V)
 {
 	const FTheme& T = V.Sim->Level->Theme;
@@ -840,7 +1370,7 @@ void FHLWorldRenderer::DrawForeground(FHLDraw& D, const FHLRenderView& V)
 	for (int32 C = FMath::FloorToInt(X0 / Cell); C <= FMath::FloorToInt(X1 / Cell); ++C)
 	{
 		const uint32 S = Hash32(T.Seed * 613u + 3u, (uint32)(C + 200000));
-		if (Hash01(S, 1) > 0.42 * T.ForegroundDensity) { continue; }
+		if (T.Setting != ESetting::Forest || Hash01(S, 1) > 0.42 * T.ForegroundDensity) { continue; }
 		const double X = C * Cell + Hash01(S, 2) * Cell;
 		const double W = HashRange(S, 3, 44, 88);
 		D.TaperLine(X, Bottom + 20, X + HashRange(S, 4, -20, 20), V.CamY - 60, W * 1.15, W * 0.9, Black);

@@ -1,13 +1,44 @@
 // EMBERHOME core: the ten levels. (CLAUDE.md: Levels)
 // Units: the screen shows 400 units of height, ground top at y = 300, y grows downward.
-// Reach at full run: a full jump rises ~104 and carries ~179 horizontally.
-// Every level is verified by the autopilot (Tools/SimHarness, test Hollowlight.Levels.AutopilotFinishes).
+// Reach: a full jump rises ~102 and carries ~160 at a run (~198 at a sprint); the hands catch a ledge
+// up to ~160 above the ground; a slide fits under anything 22 or more above the ground; the dog fits
+// under 16. A crate top is 56 up. Water surface 339 puts a floating crate's top flush with ground at 300.
+// Every level is verified by the autopilot (Tools/SimHarness, test Hollowlight.Levels.AutopilotFinishes),
+// puzzle levels by following their Solution script. Checkpoints must be clean cuts: nothing behind one
+// may be needed to finish from it.
 #include "HLLevel.h"
+
+#include <cmath>
 
 namespace HL
 {
 	namespace
 	{
+		// A hillside from (X0, Y0) to (X1, Y1): thin stair-steps the child (and the dog) walk up without
+		// noticing, drawn as one smooth slope. Keep it gentler than ~0.8 so each step is under 6 high.
+		void AddSlope(FLevelDef& L, double X0, double Y0, double X1, double Y1)
+		{
+			const double StepW = 6.0;
+			const int N = (int)std::ceil((X1 - X0) / StepW);
+			for (int I = 0; I < N; ++I)
+			{
+				const double A = X0 + (X1 - X0) * I / N, B = X0 + (X1 - X0) * (I + 1) / N;
+				const double Top = Y0 + (Y1 - Y0) * (I + 0.5) / N;
+				FGroundDef G{ A, B, Top };
+				G.bStep = true;
+				L.Ground.push_back(G);
+			}
+			L.Slopes.push_back({ X0, Y0, X1, Y1 });
+		}
+
+		FSolveStep Go(double X) { return { EStepKind::Go, X }; }
+		FSolveStep GoOn(double X, double FloorY) { return { EStepKind::Go, X, FloorY }; }
+		FSolveStep Act() { return { EStepKind::Act }; }
+		FSolveStep WaitGate(int Gate) { return { EStepKind::WaitGate, (double)Gate }; }
+		FSolveStep WaitDogStay() { return { EStepKind::WaitDogStay }; }
+		FSolveStep Climb() { return { EStepKind::Climb }; }
+		FSolveStep CallDog() { return { EStepKind::CallDog }; }
+
 		std::vector<FLevelDef> BuildLevels()
 		{
 			std::vector<FLevelDef> Levels;
@@ -34,24 +65,31 @@ namespace HL
 			}
 
 			// 2 ------------------------------------------------------------------------------------
-			// Stepping stones over a gully, a stump too tall to jump without the crate, a first pond.
+			// Hills, and a stray dog. It points out jaws in the grass, and it fits where the child cannot:
+			// a lever to throw yourself, then one only the dog can reach.
 			{
 				FLevelDef L;
-				L.Name = "Stepping Stones";
-				L.Subtitle = "The stones remember every foot.";
-				L.GoalX = 4650;
+				L.Name = "A Stray";
+				L.Subtitle = "Not alone any more.";
+				L.GoalX = 4000;
 				L.MinX = -600;
-				L.MaxX = 5000;
-				L.Ground = { { -600, 520, 300 }, { 1180, 1900, 300 }, { 1900, 2700, 186 }, { 2700, 3400, 300 },
-				             { 3530, 4150, 300 }, { 4250, 5000, 300 } };
-				L.Blocks = { { 640, 280, 700, 480 }, { 820, 265, 880, 480 }, { 1000, 285, 1060, 480 }, { 4940, -400, 5000, 300 } };
-				L.Crates = { { 1450, 300 } };
-				L.Traps = { { 3000 }, { 3800 } };
-				L.Water = { { 3400, 3530, 332 } };
-				L.Checkpoints = { 150, 1200, 1950, 2750, 3560, 4270 };
+				L.MaxX = 4300;
+				L.bDog = true;
+				L.Ground = { { -600, 500, 300 }, { 800, 1200, 220 }, { 1500, 3400, 300 }, { 3520, 4300, 300 } };
+				AddSlope(L, 500, 300, 800, 220);
+				AddSlope(L, 1200, 220, 1500, 300);
+				L.Blocks = { { 4240, -400, 4300, 300 } };
+				L.Traps = { { 300 }, { 1000 }, { 1750 } };
+				L.Gates = { { 2300, 120, 2330, 300 },      // 0: log gate, opened by the lever in front of it
+				            { 2900, 60, 2960, 282 } };     // 1: heavy gate with a gap only the dog fits under
+				L.Levers = { { 2180, 0 }, { 3040, 1 } };
+				L.DogTasks = { { 2560, 2895, 1 } };
+				L.Hints = { { 1900, 2290, 2180, 0 }, { 2400, 2895, 2880, 1 } };
+				L.Checkpoints = { 150, 820, 1520, 2340, 2980, 3540 };
+				L.Solution = { Go(2180), Act(), WaitGate(0), Go(2700), Act(), WaitGate(1) };
 				L.Theme.Seed = 23;
 				L.Theme.Brightness = 1.05;
-				L.Theme.Fog = 0.8;
+				L.Theme.Fog = 0.9;
 				L.Theme.Rain = 0.7;
 				Levels.push_back(L);
 			}
@@ -65,6 +103,7 @@ namespace HL
 				L.GoalX = 5100;
 				L.MinX = -600;
 				L.MaxX = 5400;
+				L.bDog = true;
 				L.Ground = { { -600, 900, 300 }, { 1000, 2200, 300 }, { 2320, 3000, 300 }, { 3000, 3800, 230 },
 				             { 3800, 4400, 300 }, { 4520, 5400, 300 } };
 				L.Blocks = { { 5340, -400, 5400, 300 } };
@@ -78,79 +117,37 @@ namespace HL
 			}
 
 			// 4 ------------------------------------------------------------------------------------
-			// Logs hung all through the wood, two of them swinging against each other.
+			// Over a ridge: slopes, a cliff with a ladder, and a winch handle to carry down to a drawbridge.
 			{
 				FLevelDef L;
-				L.Name = "The Hanging Wood";
-				L.Subtitle = "Listen for the rope.";
-				L.GoalX = 5400;
+				L.Name = "Over the Ridge";
+				L.Subtitle = "Carry what the bridge needs.";
+				L.GoalX = 4300;
 				L.MinX = -600;
-				L.MaxX = 5800;
-				L.Ground = { { -600, 1000, 300 }, { 1110, 1900, 300 }, { 2010, 3200, 300 }, { 3300, 4600, 300 },
-				             { 4700, 5800, 300 } };
-				L.Blocks = { { 5740, -400, 5800, 300 } };
-				L.Traps = { { 4200 } };
-				L.Logs = { { 600, 50, 212, 0.9, 2.4, 0.0 }, { 1400, 50, 212, 0.95, 2.6, 1.5 },
-				           { 2350, 50, 212, 0.9, 2.2, 0.0 }, { 2750, 50, 212, 0.9, 2.2, kPi },
-				           { 3800, 50, 212, 0.95, 2.8, 0.7 }, { 5050, 50, 212, 0.95, 3.0, 2.0 } };
-				L.Checkpoints = { 150, 1130, 2030, 3320, 4720 };
-				L.Theme.Seed = 41;
-				L.Theme.Brightness = 0.92;
-				L.Theme.Fog = 1.3;
+				L.MaxX = 4600;
+				L.bDog = true;
+				L.Ground = { { -600, 400, 300 }, { 700, 1000, 180 }, { 1000, 1700, 300 }, { 1700, 2500, 130 },
+				             { 2500, 3300, 300 }, { 3620, 3800, 300 }, { 4100, 4600, 200 } };
+				AddSlope(L, 400, 300, 700, 180);
+				AddSlope(L, 3800, 300, 4100, 200);
+				L.Blocks = { { 4540, -400, 4600, 200 } };
+				L.Ladders = { { 1688, 130, 300 } };
+				L.Traps = { { 1350 }, { 2000 } };
+				L.Water = { { 3300, 3620, 339 } };
+				L.Gates = { { 3300, 300, 3620, 312, false, true } };   // 0: the drawbridge
+				L.Items = { { 2250, EItem::Handle, 130 } };
+				L.Sockets = { { 3240, EItem::Handle, 0 } };
+				L.Hints = { { 2050, 2450, 2250, 0 }, { 2900, 3300, 3240, 0 } };
+				L.Checkpoints = { 150, 720, 1020, 1710, 3640 };
+				L.Solution = { Go(1688), Climb(), GoOn(2250, 130), Act(), Go(3240), Act(), WaitGate(0) };
+				L.Theme.Seed = 43;
+				L.Theme.Brightness = 0.95;
 				L.Theme.Shafts = 1.4;
+				L.Theme.Wind = 0.4;
 				Levels.push_back(L);
 			}
 
 			// 5 ------------------------------------------------------------------------------------
-			// Drifting boughs over wide gaps, and a lift up to a high shelf.
-			{
-				FLevelDef L;
-				L.Name = "Drifting Boughs";
-				L.Subtitle = "Wait for the wood to come to you.";
-				L.GoalX = 5500;
-				L.MinX = -600;
-				L.MaxX = 6000;
-				L.Ground = { { -600, 700, 300 }, { 1150, 1800, 300 }, { 2500, 3200, 300 }, { 3290, 4100, 150 },
-				             { 4100, 4600, 300 }, { 5050, 6000, 300 } };
-				L.Blocks = { { 5940, -400, 6000, 300 } };
-				L.Traps = { { 1450 }, { 3700 } };
-				L.Platforms = { { 790, 290, 1060, 290, 90, 3.2, 0.0 },
-				                { 1880, 285, 2100, 285, 80, 2.8, 0.0 }, { 2220, 285, 2420, 285, 80, 2.8, 0.5 },
-				                { 3250, 300, 3250, 150, 80, 3.4, 0.0 },
-				                { 4690, 280, 4960, 280, 90, 3.0, 0.25 } };
-				L.Checkpoints = { 150, 1170, 2520, 3310, 4120, 5070 };
-				L.Theme.Seed = 53;
-				L.Theme.Rain = 1.2;
-				L.Theme.Wind = 0.5;
-				Levels.push_back(L);
-			}
-
-			// 6 ------------------------------------------------------------------------------------
-			// Rotten branches give way a breath after you land. Don't stop.
-			{
-				FLevelDef L;
-				L.Name = "Rotten Branches";
-				L.Subtitle = "Don't stand still.";
-				L.GoalX = 5000;
-				L.MinX = -600;
-				L.MaxX = 5400;
-				L.Ground = { { -600, 700, 300 }, { 1300, 2000, 300 }, { 2800, 3600, 300 }, { 4300, 5400, 300 } };
-				L.Blocks = { { 5340, -400, 5400, 300 } };
-				L.Traps = { { 1600 }, { 4700 } };
-				L.Logs = { { 3200, 50, 212, 0.95, 2.6, 0.4 } };
-				L.Platforms = { { 3690, 290, 3900, 290, 80, 2.6, 0.0 } };
-				L.Crumbles = { { 780, 880, 290 }, { 960, 1060, 285 }, { 1140, 1240, 290 },
-				               { 2080, 2180, 280 }, { 2260, 2360, 265 }, { 2440, 2540, 280 }, { 2620, 2720, 290 },
-				               { 4000, 4100, 280 }, { 4180, 4260, 285 } };
-				L.Checkpoints = { 150, 1320, 2820, 4320 };
-				L.Theme.Seed = 67;
-				L.Theme.Brightness = 0.85;
-				L.Theme.Darkness = 0.65;
-				L.Theme.LightRadius = 0.9;
-				Levels.push_back(L);
-			}
-
-			// 7 ------------------------------------------------------------------------------------
 			// Black water too wide to jump: push a crate in and it floats.
 			{
 				FLevelDef L;
@@ -159,6 +156,7 @@ namespace HL
 				L.GoalX = 5450;
 				L.MinX = -600;
 				L.MaxX = 5700;
+				L.bDog = true;
 				L.Ground = { { -600, 800, 300 }, { 1010, 1900, 300 }, { 2110, 2900, 300 }, { 2900, 3600, 190 },
 				             { 3600, 4200, 300 }, { 4400, 5700, 300 } };
 				L.Blocks = { { 5640, -400, 5700, 300 } };
@@ -173,27 +171,119 @@ namespace HL
 				Levels.push_back(L);
 			}
 
-			// 8 ------------------------------------------------------------------------------------
-			// Lifts up into the canopy, then down again over rotten branches.
+			// 6 ------------------------------------------------------------------------------------
+			// A warehouse. A door that only stays open while something stands on its plate; a crowbar
+			// up on the racking; a second door that wants a crate.
 			{
 				FLevelDef L;
-				L.Name = "Into the Canopy";
-				L.Subtitle = "Up where the rain begins.";
-				L.GoalX = 5300;
+				L.Name = "The Warehouse";
+				L.Subtitle = "Something has to hold the door.";
+				L.GoalX = 3900;
+				L.MinX = -400;
+				L.MaxX = 4200;
+				L.bDog = true;
+				L.Ground = { { -400, 4200, 300 } };
+				L.Blocks = { { 1500, 120, 1900, 136 },     // racking: reached by the ladder at its near end
+				             { 3208, 288, 3220, 300 },     // a kerb: the crate stops here, on the plate
+				             { 4140, -400, 4200, 300 } };
+				L.Ladders = { { 1486, 120, 300 } };
+				L.Crates = { { 2850, 300 } };
+				L.Gates = { { 900, 100, 930, 300 },        // 0: sliding door held by plate 0
+				            { 2600, 100, 2630, 300 },      // 1: jammed door, wants the crowbar
+				            { 3400, 100, 3430, 300 } };    // 2: sliding door held by plate 1
+				L.Plates = { { 600, 660, 0 }, { 3150, 3210, 2 } };
+				L.Items = { { 1700, EItem::Crowbar, 120 } };
+				L.Sockets = { { 2560, EItem::Crowbar, 1 } };
+				L.Hints = { { 300, 895, 630, 0 }, { 1000, 2595, 1486, 1 }, { 2640, 3395, 3180, 2 } };
+				L.Checkpoints = { 150, 960, 1300, 2660, 3450 };
+				L.Solution = { Go(630), Act(), WaitDogStay(), Go(1000), CallDog(), Go(1486), Climb(), GoOn(1700, 120), Act(),
+				               Go(2000), Go(2560), Act(), WaitGate(1), Go(3143) };
+				L.Theme.Seed = 61;
+				L.Theme.Setting = ESetting::Warehouse;
+				L.Theme.Rain = 0.0;
+				L.Theme.Fog = 0.6;
+				L.Theme.Brightness = 0.8;
+				L.Theme.Darkness = 0.68;
+				L.Theme.Shafts = 1.8;
+				L.Theme.ForegroundDensity = 0.0;
+				Levels.push_back(L);
+			}
+
+			// 7 ------------------------------------------------------------------------------------
+			// A railway yard at night: slide under a wagon, climb over another, send the dog into the
+			// signal hut, and fetch the handle that swings the bridge over the inspection pit.
+			{
+				FLevelDef L;
+				L.Name = "Sidings";
+				L.Subtitle = "The points are set against you.";
+				L.GoalX = 4200;
 				L.MinX = -600;
-				L.MaxX = 5600;
-				L.Ground = { { -600, 900, 300 }, { 1000, 1600, 170 }, { 1680, 2200, 40 }, { 2820, 3600, 300 },
-				             { 4100, 4600, 200 }, { 4600, 5600, 300 } };
-				L.Blocks = { { 5540, -400, 5600, 300 } };
-				L.Traps = { { 1300 }, { 5000 } };
-				L.Logs = { { 3200, 50, 212, 0.95, 2.6, 1.0 } };
-				L.Platforms = { { 960, 300, 960, 170, 80, 3.4, 0.0 }, { 1640, 170, 1640, 40, 80, 3.6, 0.0 },
-				                { 3690, 290, 4010, 200, 90, 3.2, 0.0 } };
-				L.Crumbles = { { 2280, 2380, 110 }, { 2460, 2560, 180 }, { 2640, 2740, 250 } };
-				L.Checkpoints = { 150, 1020, 1700, 2840, 4120, 4620 };
-				L.Theme.Seed = 89;
-				L.Theme.Shafts = 1.6;
-				L.Theme.Fog = 0.9;
+				L.MaxX = 4600;
+				L.bDog = true;
+				L.Ground = { { -600, 3300, 300 }, { 3640, 4600, 300 } };
+				L.Blocks = { { 500, 150, 900, 276 },       // box wagon on its wheels: slide under, or climb over
+				             { 1500, 100, 1900, 300 },     // loaded wagon: too tall, take the ladder
+				             { 2300, 150, 2320, 282 },     // signal hut: near wall, with a gap only the dog fits under
+				             { 2300, 150, 2460, 166 },     //   roof
+				             { 2440, 150, 2460, 300 },     //   far wall
+				             { 2800, 130, 3100, 300 },     // flat wagon carrying the bridge handle
+				             { 4540, -400, 4600, 300 } };
+				L.Ladders = { { 1486, 100, 300 }, { 2786, 130, 300 } };
+				L.Traps = { { 1150 } };
+				L.Gates = { { 2600, 120, 2630, 300 },                      // 0: crossing barrier, lever in the hut
+				            { 3300, 300, 3640, 312, false, true } };       // 1: swing bridge over the pit
+				L.Levers = { { 2380, 0 } };
+				L.DogTasks = { { 1950, 2295, 0 } };
+				L.Items = { { 2950, EItem::Handle, 130 } };
+				L.Sockets = { { 3250, EItem::Handle, 1 } };
+				L.Hints = { { 1950, 2295, 2290, 0 }, { 2640, 3295, 2786, 1 } };
+				L.Checkpoints = { 150, 920, 1960, 2660, 3660 };
+				L.Solution = { Go(1486), Climb(), Go(2100), Act(), WaitGate(0), Go(2786), Climb(), GoOn(2950, 130), Act(),
+				               Go(3250), Act(), WaitGate(1) };
+				L.Theme.Seed = 71;
+				L.Theme.Setting = ESetting::Railway;
+				L.Theme.Brightness = 0.82;
+				L.Theme.Rain = 1.3;
+				L.Theme.Wind = 0.5;
+				L.Theme.Darkness = 0.66;
+				L.Theme.ForegroundDensity = 0.3;
+				Levels.push_back(L);
+			}
+
+			// 8 ------------------------------------------------------------------------------------
+			// A station. Luggage on one plate and the dog on another to get through the barriers, a
+			// footbridge over the tracks, and a crowbar for the gate to the far platform's ladder.
+			{
+				FLevelDef L;
+				L.Name = "The Station";
+				L.Subtitle = "Two barriers, one of you.";
+				L.GoalX = 3700;
+				L.MinX = -600;
+				L.MaxX = 4200;
+				L.bDog = true;
+				L.Ground = { { -600, 600, 300 }, { 600, 1700, 240 }, { 1900, 2300, 120 }, { 2500, 2600, 240 },
+				             { 2600, 3000, 300 }, { 3000, 4200, 130 } };
+				AddSlope(L, 1700, 240, 1900, 120);
+				AddSlope(L, 2300, 120, 2500, 240);
+				L.Blocks = { { 1010, 228, 1022, 240 },     // kerb: the luggage stops here, on the plate
+				             { 4140, -400, 4200, 130 } };
+				L.Ladders = { { 2986, 130, 300 } };
+				L.Crates = { { 800, 240 } };
+				L.Gates = { { 1200, 60, 1230, 240 },       // 0: first barrier, plate 0 (luggage)
+				            { 1500, 60, 1530, 240 },       // 1: second barrier, plate 1 (the dog)
+				            { 2940, 100, 2960, 300 } };    // 2: gate to the ladder, wants the crowbar
+				L.Plates = { { 950, 1010, 0, 240 }, { 1300, 1360, 1, 240 } };
+				L.Items = { { 2750, EItem::Crowbar, 300 } };
+				L.Sockets = { { 2900, EItem::Crowbar, 2, 300 } };
+				L.Hints = { { 620, 1195, 980, 0 }, { 1235, 1495, 1330, 1 }, { 2620, 2935, 2750, 2 } };
+				L.Checkpoints = { 150, 620, 1560, 2620, 3020 };
+				L.Solution = { Go(945), WaitGate(0), Go(1330), Act(), WaitDogStay(), Go(1600), CallDog(), Go(2750), Act(),
+				               Go(2900), Act(), WaitGate(2), Go(2986), Climb() };
+				L.Theme.Seed = 83;
+				L.Theme.Setting = ESetting::Station;
+				L.Theme.Rain = 0.9;
+				L.Theme.Fog = 1.2;
+				L.Theme.ForegroundDensity = 0.2;
 				Levels.push_back(L);
 			}
 
@@ -206,6 +296,7 @@ namespace HL
 				L.GoalX = 6200;
 				L.MinX = -600;
 				L.MaxX = 6400;
+				L.bDog = true;
 				L.Ground = { { -600, 700, 300 }, { 820, 1500, 300 }, { 1500, 2100, 186 }, { 2300, 3100, 300 },
 				             { 3310, 3900, 300 }, { 4400, 4900, 300 }, { 5400, 6400, 300 } };
 				L.Blocks = { { 6340, -400, 6400, 300 } };
@@ -235,6 +326,7 @@ namespace HL
 				L.GoalX = 6700;
 				L.MinX = -600;
 				L.MaxX = 7000;
+				L.bDog = true;
 				L.Ground = { { -600, 800, 300 }, { 920, 1700, 300 }, { 1700, 2400, 190 }, { 2400, 3200, 300 },
 				             { 3410, 4000, 300 }, { 4500, 5100, 300 }, { 5500, 7000, 300 } };
 				L.Blocks = { { 6940, -400, 7000, 300 } };

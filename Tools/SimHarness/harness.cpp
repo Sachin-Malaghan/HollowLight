@@ -51,7 +51,7 @@ int main(int Argc, char** Argv)
 		double LastTrace = -1;
 		for (; Step < MaxSteps && Sim.Phase != EPhase::Won && !(bBaseOnly && Sim.Deaths > 0 && Sim.Phase == EPhase::Playing); ++Step)
 		{
-			const FInput In = bBaseOnly ? FAutopilot::BasePolicy(Sim) : Pilot.Decide(Sim);
+			const FInput In = bBaseOnly ? FAutopilot::BasePolicy(Sim, Sim.Level->GoalX) : Pilot.Decide(Sim);
 			Sim.Events.clear();
 			Sim.Step(In);
 			for (const FEvent& E : Sim.Events)

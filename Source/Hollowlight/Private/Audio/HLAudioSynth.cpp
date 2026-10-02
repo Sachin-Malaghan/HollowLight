@@ -200,6 +200,55 @@ void UHLAudioSynth::OnSimEvent(const HL::FEvent& E, float Pan, float Distance)
 	case EEvent::LogSwoosh:
 		V.Noise = 1; V.Cut1 = 0.07f; V.Cut2 = 0.025f; V.Attack = 0.16f; V.Dur = 0.5f; V.Amp = 0.13f * Near * Near; V.Wet = 0.2f; Queue(V);
 		break;
+	case EEvent::Lever:
+		V.Noise = 1; V.Cut1 = 0.7f; V.Cut2 = 0.2f; V.Dur = 0.04f; V.Amp = 0.3f * Near; Queue(V);                     // clack
+		V.Noise = 0; V.Tone = 1; V.F0 = 210; V.F1 = 120; V.Harm = 0.5f; V.Dur = 0.16f; V.Amp = 0.16f * Near; Queue(V);
+		break;
+	case EEvent::GateOpen:
+	case EEvent::GateShut:
+		// chain and timber: a low rumble with a rattle on top
+		V.Noise = 1; V.Cut1 = 0.04f; V.Cut2 = 0.02f; V.Attack = 0.08f; V.Dur = 0.9f; V.Amp = 0.2f * Near; V.Wet = 0.25f; Queue(V);
+		for (int32 I = 0; I < 5; ++I)
+		{
+			FVoiceSpec R = V; R.Delay = 0.1f + 0.13f * I; R.Cut1 = 0.8f; R.Cut2 = 0.3f; R.Attack = 0.002f; R.Dur = 0.03f; R.Amp = 0.09f * Near; Queue(R);
+		}
+		if (E.Type == EEvent::GateShut)
+		{
+			FVoiceSpec Thud = V; Thud.Delay = 0.5f; Thud.Noise = 0; Thud.Tone = 1; Thud.F0 = 80; Thud.F1 = 42; Thud.Attack = 0.003f; Thud.Dur = 0.25f; Thud.Amp = 0.25f * Near; Queue(Thud);
+		}
+		break;
+	case EEvent::PlateDown:
+	case EEvent::PlateUp:
+		V.Tone = 1; V.F0 = E.Type == EEvent::PlateDown ? 180.f : 130.f; V.F1 = E.Type == EEvent::PlateDown ? 110.f : 190.f; V.Dur = 0.1f; V.Amp = 0.14f * Near; Queue(V);
+		V.Tone = 0; V.Noise = 1; V.Cut1 = 0.5f; V.Cut2 = 0.1f; V.Dur = 0.04f; V.Amp = 0.12f * Near; Queue(V);
+		break;
+	case EEvent::Pickup:
+		V.Tone = 1; V.F0 = 1320; V.F1 = 1300; V.Harm = 0.5f; V.Dur = 0.35f; V.Amp = 0.04f; V.Wet = 0.3f; Queue(V);   // iron on stone
+		V.Tone = 0; V.Noise = 1; V.Cut1 = 0.3f; V.Cut2 = 0.06f; V.Dur = 0.07f; V.Amp = 0.1f; Queue(V);
+		break;
+	case EEvent::UseTool:
+		for (int32 I = 0; I < 3; ++I)
+		{
+			FVoiceSpec R = V; R.Delay = 0.11f * I; R.Noise = 1; R.Cut1 = 0.6f; R.Cut2 = 0.15f; R.Dur = 0.05f; R.Amp = 0.2f; Queue(R);    // ratchet
+		}
+		V.Delay = 0.3f; V.Tone = 1; V.F0 = 160; V.F1 = 70; V.Harm = 0.6f; V.Dur = 0.3f; V.Amp = 0.2f; Queue(V);
+		break;
+	case EEvent::Whistle:
+		// two notes, rising
+		V.Tone = 1; V.F0 = 1560; V.F1 = 1760; V.Attack = 0.02f; V.Dur = 0.14f; V.Amp = 0.05f; V.Wet = 0.45f; Queue(V);
+		V.Delay = 0.16f; V.F0 = 1900; V.F1 = 2350; V.Dur = 0.2f; Queue(V);
+		break;
+	case EEvent::Bark:
+		V.Tone = 0.7f; V.F0 = 520; V.F1 = 300; V.Harm = 0.9f; V.Noise = 0.6f; V.Cut1 = 0.25f; V.Cut2 = 0.06f; V.Attack = 0.004f; V.Dur = 0.11f; V.Amp = 0.2f * Near; V.Wet = 0.3f; Queue(V);
+		V.Delay = 0.17f; V.F0 = 560; Queue(V);
+		break;
+	case EEvent::LadderStep:
+		V.Tone = 1; V.F0 = 310; V.F1 = 240; V.Harm = 0.4f; V.Dur = 0.06f; V.Amp = 0.06f; Queue(V);
+		V.Tone = 0; V.Noise = 1; V.Cut1 = 0.25f; V.Cut2 = 0.05f; V.Dur = 0.04f; V.Amp = 0.05f; Queue(V);
+		break;
+	case EEvent::DogPoof:
+		V.Noise = 1; V.Cut1 = 0.15f; V.Cut2 = 0.03f; V.Attack = 0.03f; V.Dur = 0.25f; V.Amp = 0.07f * Near; Queue(V);
+		break;
 	default:
 		break;
 	}

@@ -40,6 +40,14 @@ namespace HL
 					if (I != SkipCrate) { Fn(FSolid{ S.Crates[I].Box(), ESupport::Crate, I, false }); }
 				}
 			}
+			for (int I = 0; I < (int)S.Gates.size(); ++I)
+			{
+				if (S.GateSolid(I))
+				{
+					const FGateDef& G = L.Gates[I];
+					Fn(FSolid{ { G.X0, G.Y0, G.X1, G.Y1 }, ESupport::Gate, I, false });
+				}
+			}
 			if (bIncludeOneWay)
 			{
 				for (int I = 0; I < (int)S.Platforms.size(); ++I)
@@ -89,6 +97,23 @@ namespace HL
 			T.Y = SurfaceAt(D.X, -kWorldBottom);
 			Traps.push_back(T);
 		}
+		Gates.assign(InLevel.Gates.size(), FGate());
+		for (int I = 0; I < (int)Gates.size(); ++I)
+		{
+			Gates[I].Latched = Gates[I].Open = InLevel.Gates[I].bStartOpen;
+			Gates[I].Amount = Gates[I].Open ? 1.0 : 0.0;
+		}
+		LeverOn.assign(InLevel.Levers.size(), false);
+		PlateDown.assign(InLevel.Plates.size(), false);
+		SocketUsed.assign(InLevel.Sockets.size(), false);
+		Items.clear();
+		for (const FItemDef& D : InLevel.Items)
+		{
+			FItem It;
+			It.X = D.X;
+			It.Y = D.Y;
+			Items.push_back(It);
+		}
 		Platforms.assign(InLevel.Platforms.size(), FPlatform());
 		Crumbles.assign(InLevel.Crumbles.size(), FCrumble());
 		UpdateMovers();
@@ -100,7 +125,12 @@ namespace HL
 		P.Y = SurfaceAt(P.X, -kWorldBottom);
 		P.Grounded = true;
 		P.SupportKind = ESupport::Ground;
+		P.IdleX = P.X;
 		MaxX = P.X;
+
+		Dog = FDog();
+		Dog.Active = InLevel.bDog;
+		if (Dog.Active) { PlaceDogNearPlayer(); }
 	}
 
 	double FSim::SpawnX() const
@@ -183,6 +213,8 @@ namespace HL
 		PhaseTime += kStep;
 		UpdateMovers();
 		UpdateCrates();
+		UpdateMechanisms();
+		if (Phase != EPhase::Dying) { UpdateDog(); }
 
 		switch (Phase)
 		{
@@ -450,6 +482,15 @@ namespace HL
 			UpdateHang(InRaw);
 			return;
 		}
+		if (Pl.Ladder >= 0)
+		{
+			UpdateLadder(InRaw);
+			return;
+		}
+
+		// How long since the child last got anywhere: the dog's cue to point something out.
+		if (std::fabs(Pl.X - Pl.IdleX) > 40.0) { Pl.IdleX = Pl.X; Pl.IdleTime = 0; }
+		else { Pl.IdleTime += kStep; }
 
 		// After a hard landing without a roll there is a beat before control returns.
 		FInput In = InRaw;
@@ -461,6 +502,40 @@ namespace HL
 		Pl.GrabCooldown -= kStep;
 		Pl.VaultTimer -= kStep;
 		Pl.RollTime -= kStep;
+
+		// ACT: pick up / use a tool, throw a lever, or whistle.
+		if (In.Act && !Pl.ActHeld && Pl.Grounded) { DoAct(); }
+		Pl.ActHeld = In.Act;
+
+		// Ladders: jump (up) at a ladder takes hold of it; down at the top of one climbs onto it.
+		if (In.Jump && !Pl.Low)
+		{
+			const int Lad = LadderAt(Pl.X, Pl.Y);
+			if (Lad >= 0 && (Pl.Grounded || Pl.VY > -200.0))
+			{
+				Pl.Ladder = Lad;
+				Pl.JumpBuffer = 0;
+				Pl.JumpHeld = true;
+				Pl.VX = Pl.VY = 0;
+				Pl.Y -= 1.0;
+				UpdateLadder(In);
+				return;
+			}
+		}
+		if (In.Down && Pl.Grounded && std::fabs(Pl.VX) < 70.0)
+		{
+			for (int I = 0; I < (int)Level->Ladders.size(); ++I)
+			{
+				const FLadderDef& Ld = Level->Ladders[I];
+				if (std::fabs(Pl.Y - Ld.Top) < 2.0 && std::fabs(Pl.X - Ld.X) < 26.0)
+				{
+					Pl.Ladder = I;
+					Pl.Y = Ld.Top + 2.0;
+					UpdateLadder(In);
+					return;
+				}
+			}
+		}
 
 		if (In.Jump && !Pl.JumpHeld) { Pl.JumpBuffer = kJumpBufferTime; }
 		if (!In.Jump && Pl.JumpHeld && Pl.VY < 0 && !Pl.JumpCut)
@@ -866,7 +941,9 @@ namespace HL
 	void FSim::Respawn()
 	{
 		ResetTransient();
+		const int Carried = P.Carry;
 		P = FPlayer();
+		P.Carry = Carried;
 		P.X = SpawnX();
 		P.Y = SurfaceAt(P.X, -kWorldBottom);
 		for (int I = 0; I < (int)Crates.size(); ++I)
@@ -876,8 +953,415 @@ namespace HL
 		}
 		P.Grounded = true;
 		P.SupportKind = ESupport::Ground;
+		P.IdleX = P.X;
 		Phase = EPhase::Playing;
 		PhaseTime = 0;
+		if (Dog.Active)
+		{
+			Dog.Mode = EDogMode::Follow;
+			PlaceDogNearPlayer();
+		}
 		Emit(EEvent::Respawn, P.X, P.Y);
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// 2.0: ladders, gates, levers, plates, tools
+
+	FRect FSim::GateBox(int I) const
+	{
+		const FGateDef& G = Level->Gates[I];
+		if (G.bBridge) { return { G.X0, G.Y0, G.X1, G.Y1 }; }   // a bridge deck swings; the renderer draws that
+		const double Lift = Gates[I].Amount * (G.Y1 - G.Y0 - 6.0);
+		return { G.X0, G.Y0 - Lift, G.X1, G.Y1 - Lift };
+	}
+
+	int FSim::LadderAt(double X, double FeetY) const
+	{
+		for (int I = 0; I < (int)Level->Ladders.size(); ++I)
+		{
+			const FLadderDef& L = Level->Ladders[I];
+			if (std::fabs(X - L.X) < 13.0 && FeetY > L.Top + 1.0 && FeetY <= L.Bottom + 1.0) { return I; }
+		}
+		return -1;
+	}
+
+	void FSim::UpdateLadder(const FInput& In)
+	{
+		FPlayer& Pl = P;
+		const FLadderDef& L = Level->Ladders[Pl.Ladder];
+		Pl.JumpHeld = In.Jump;
+		Pl.ActHeld = In.Act;
+		Pl.Pose = EPose::Ladder;
+		Pl.Grounded = false;
+		Pl.VX = Pl.VY = 0;
+		Pl.X = L.X;
+		Pl.Low = false;
+		Pl.Sliding = false;
+		Pl.H = kPlayerH;
+		Pl.AirTime = 0;
+
+		const double V = In.Jump ? -105.0 : (In.Down ? 140.0 : 0.0);
+		const double Before = Pl.LadderPhase;
+		Pl.Y += V * kStep;
+		Pl.LadderPhase += std::fabs(V) * kStep * 0.09;
+		if (std::floor(Pl.LadderPhase / kPi) != std::floor(Before / kPi)) { Emit(EEvent::LadderStep, Pl.X, Pl.Y); }
+
+		auto StepOff = [&](double Y)
+		{
+			Pl.Ladder = -1;
+			Pl.Y = Y;
+			Pl.Pose = EPose::Stand;
+			Pl.GrabCooldown = 0.2;
+			// Step onto whichever side has ground at this height.
+			if (HasSupport(L.X + 20.0, Y, 2.0, 2.0)) { Pl.X = L.X + 20.0; Pl.Facing = 1; }
+			else if (HasSupport(L.X - 20.0, Y, 2.0, 2.0)) { Pl.X = L.X - 20.0; Pl.Facing = -1; }
+			Pl.Grounded = HasSupport(Pl.X, Y, 2.0, 2.0);
+			Pl.Coyote = kCoyoteTime;
+		};
+
+		if (Pl.Y <= L.Top) { StepOff(L.Top); return; }
+		if (Pl.Y >= L.Bottom) { StepOff(L.Bottom); return; }
+		if (In.Dir != 0 && !In.Jump && !In.Down)
+		{
+			// Let go sideways.
+			Pl.Ladder = -1;
+			Pl.VX = In.Dir * 120.0;
+			Pl.Facing = In.Dir;
+			Pl.GrabCooldown = 0.25;
+			Pl.Pose = EPose::Stand;
+		}
+	}
+
+	void FSim::ThrowLever(int Index, double X, double Y)
+	{
+		LeverOn[Index] = !LeverOn[Index];
+		FGate& G = Gates[Level->Levers[Index].Gate];
+		G.Latched = !G.Latched;
+		Emit(EEvent::Lever, X, Y);
+	}
+
+	void FSim::DoAct()
+	{
+		FPlayer& Pl = P;
+		const FLevelDef& L = *Level;
+
+		// 1. A socket that wants the tool in hand.
+		for (int I = 0; I < (int)L.Sockets.size(); ++I)
+		{
+			const FSocketDef& S = L.Sockets[I];
+			if (SocketUsed[I] || std::fabs(Pl.X - S.X) > 28.0 || std::fabs(Pl.Y - S.Y) > 8.0) { continue; }
+			if (Pl.Carry >= 0 && L.Items[Pl.Carry].Kind == S.Kind)
+			{
+				SocketUsed[I] = true;
+				Gates[S.Gate].Latched = true;
+				Items[Pl.Carry].Used = true;
+				Items[Pl.Carry].Carried = false;
+				Pl.Carry = -1;
+				Emit(EEvent::UseTool, S.X, S.Y);
+				return;
+			}
+		}
+		// 2. A tool on the ground.
+		if (Pl.Carry < 0)
+		{
+			for (int I = 0; I < (int)Items.size(); ++I)
+			{
+				if (!Items[I].Used && !Items[I].Carried && std::fabs(Pl.X - Items[I].X) < 26.0 && std::fabs(Pl.Y - Items[I].Y) < 8.0)
+				{
+					Items[I].Carried = true;
+					Pl.Carry = I;
+					Emit(EEvent::Pickup, Items[I].X, Items[I].Y);
+					return;
+				}
+			}
+		}
+		// 3. A lever within reach.
+		for (int I = 0; I < (int)L.Levers.size(); ++I)
+		{
+			if (std::fabs(Pl.X - L.Levers[I].X) < 26.0 && std::fabs(Pl.Y - L.Levers[I].Y) < 8.0)
+			{
+				ThrowLever(I, L.Levers[I].X, L.Levers[I].Y);
+				return;
+			}
+		}
+		// 4. Nothing in reach: whistle for the dog.
+		Emit(EEvent::Whistle, Pl.X, Pl.Y - 36.0);
+		if (!Dog.Active) { return; }
+		for (const FDogTaskDef& T : L.DogTasks)
+		{
+			if (Pl.X >= T.X0 && Pl.X <= T.X1 && !LeverOn[T.Lever])
+			{
+				Dog.Mode = EDogMode::TaskGo;
+				Dog.Task = T.Lever;
+				Dog.TargetX = L.Levers[T.Lever].X;
+				return;
+			}
+		}
+		if (Dog.Mode == EDogMode::Stay || Dog.Mode == EDogMode::GoStay)
+		{
+			Dog.Mode = EDogMode::Follow;
+		}
+		else
+		{
+			Dog.Mode = EDogMode::GoStay;   // "come here and stay"
+			Dog.TargetX = Pl.X;
+		}
+	}
+
+	void FSim::UpdateMechanisms()
+	{
+		const FLevelDef& L = *Level;
+
+		for (int I = 0; I < (int)L.Plates.size(); ++I)
+		{
+			const FPlateDef& Pd = L.Plates[I];
+			bool bDown = Phase != EPhase::Dying && P.Grounded && std::fabs(P.Y - Pd.Y) < 3.0 && P.X >= Pd.X0 && P.X <= Pd.X1;
+			for (const FCrate& C : Crates)
+			{
+				bDown = bDown || (std::fabs(C.Y + kCrateSize - Pd.Y) < 3.0 && C.X + kCrateSize * 0.5 >= Pd.X0 && C.X + kCrateSize * 0.5 <= Pd.X1);
+			}
+			bDown = bDown || (Dog.Active && Dog.Grounded && std::fabs(Dog.Y - Pd.Y) < 3.0 && Dog.X >= Pd.X0 && Dog.X <= Pd.X1);
+			if (bDown != PlateDown[I])
+			{
+				PlateDown[I] = bDown;
+				Emit(bDown ? EEvent::PlateDown : EEvent::PlateUp, (Pd.X0 + Pd.X1) * 0.5, Pd.Y);
+			}
+		}
+
+		for (int I = 0; I < (int)Gates.size(); ++I)
+		{
+			FGate& G = Gates[I];
+			bool bOpen = G.Latched;
+			for (int Pi = 0; Pi < (int)L.Plates.size(); ++Pi) { bOpen = bOpen || (L.Plates[Pi].Gate == I && PlateDown[Pi]); }
+			if (bOpen != G.Open)
+			{
+				G.Open = bOpen;
+				const FGateDef& D = L.Gates[I];
+				Emit(bOpen ? EEvent::GateOpen : EEvent::GateShut, (D.X0 + D.X1) * 0.5, D.Y1);
+			}
+			if (G.Open)
+			{
+				G.Amount = Approach(G.Amount, 1.0, kStep * 2.4);
+			}
+			else
+			{
+				// Never close on top of the child, a crate or the dog.
+				const FGateDef& D = L.Gates[I];
+				const FRect R = { D.X0, D.Y0, D.X1, D.Y1 };
+				bool bClear = !R.Overlaps(P.Box()) && !(Dog.Active && R.Overlaps(Dog.Box()));
+				for (const FCrate& C : Crates) { bClear = bClear && !R.Overlaps(C.Box()); }
+				if (bClear || G.Amount < 0.55) { G.Amount = Approach(G.Amount, 0.0, kStep * 2.4); }
+			}
+		}
+
+		// A carried tool goes where the child goes.
+		if (P.Carry >= 0)
+		{
+			Items[P.Carry].X = P.X;
+			Items[P.Carry].Y = P.Y;
+		}
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// The dog
+
+	void FSim::PlaceDogNearPlayer()
+	{
+		Dog.X = P.X - P.Facing * 30.0;
+		if (!IsFree({ Dog.X - FDog::W * 0.5, P.Y - FDog::H, Dog.X + FDog::W * 0.5, P.Y - 0.5 })) { Dog.X = P.X; }
+		Dog.Y = P.Y;
+		Dog.VX = Dog.VY = 0;
+		Dog.Grounded = true;
+		Dog.StuckTime = 0;
+		Dog.LostTime = 0;
+	}
+
+	void FSim::UpdateDog()
+	{
+		FDog& D = Dog;
+		if (!D.Active) { return; }
+		const FLevelDef& L = *Level;
+		D.BarkFlash -= kStep;
+		D.BarkTimer -= kStep;
+		const int PF = P.Facing;
+
+		// What is it doing? Following, unless something needs pointing out.
+		if (D.Mode == EDogMode::Follow || D.Mode == EDogMode::Point)
+		{
+			int Trap = -1;
+			double Best = 200.0;
+			for (int I = 0; I < (int)Traps.size(); ++I)
+			{
+				const double Ahead = (Traps[I].X - P.X) * PF;
+				if (!Traps[I].Closed && Ahead > 12.0 && Ahead < Best && std::fabs(Traps[I].Y - P.Y) < 80.0)
+				{
+					Best = Ahead;
+					Trap = I;
+				}
+			}
+			int Hint = -1;
+			if (Trap < 0 && P.IdleTime > 5.0)
+			{
+				for (int I = 0; I < (int)L.Hints.size(); ++I)
+				{
+					const FHintDef& H = L.Hints[I];
+					if (P.X >= H.X0 && P.X <= H.X1 && (H.UntilGate < 0 || !Gates[H.UntilGate].Open)) { Hint = I; break; }
+				}
+			}
+			if (Trap >= 0)
+			{
+				D.Mode = EDogMode::Point;
+				D.PointTrap = Trap;
+				D.TargetX = Traps[Trap].X - PF * 38.0;   // stops short of the teeth
+			}
+			else if (Hint >= 0)
+			{
+				D.Mode = EDogMode::Point;
+				D.PointTrap = -1;
+				D.TargetX = L.Hints[Hint].PointX;
+			}
+			else
+			{
+				D.Mode = EDogMode::Follow;
+				D.PointTrap = -1;
+				D.TargetX = P.X - PF * 34.0;
+			}
+		}
+
+		const double ToTarget = D.TargetX - D.X;
+		const bool bArrived = std::fabs(ToTarget) < 7.0;
+		double Want = 0;
+		if (D.Mode != EDogMode::Stay && !bArrived)
+		{
+			Want = (ToTarget > 0 ? 1.0 : -1.0) * Clamp(std::fabs(ToTarget) * 5.0, 70.0, 300.0);
+		}
+		D.VX = Approach(D.VX, Want, 2400.0 * kStep);
+		if (Want != 0) { D.Facing = Want > 0 ? 1 : -1; }
+		else if (D.Mode == EDogMode::Point && D.PointTrap >= 0) { D.Facing = Traps[D.PointTrap].X > D.X ? 1 : -1; }
+		else if (D.Mode == EDogMode::Follow) { D.Facing = PF; }
+
+		// Hop over what a dog would hop over: a step, a gap it can clear, an open trap.
+		if (D.Grounded && Want != 0)
+		{
+			const int Dir = Want > 0 ? 1 : -1;
+			const double Front = D.X + Dir * FDog::W * 0.5;
+			bool bJump = D.StuckTime > 0.06;
+			for (const FTrap& T : Traps)
+			{
+				const double Ahead = (T.X - D.X) * Dir;
+				bJump = bJump || (!T.Closed && Ahead > 16.0 && Ahead < 46.0 && std::fabs(T.Y - D.Y) < 4.0);
+			}
+			if (!HasSupport(Front + Dir * 8.0, D.Y, 8.0, 18.0))
+			{
+				bool bReach = false;
+				for (double DX = 12.0; DX <= 170.0 && !bReach; DX += 8.0) { bReach = HasSupport(Front + Dir * DX, D.Y, 70.0, 150.0); }
+				if (bReach) { bJump = true; } else { D.VX = 0; }   // wait at the edge rather than fall
+			}
+			if (bJump)
+			{
+				D.VY = -500.0;
+				D.Grounded = false;
+			}
+		}
+
+		D.VY = std::min(D.VY + kGravity * kStep, kMaxFallSpeed);
+
+		// Move, one axis at a time, against everything solid.
+		const double StartX = D.X;
+		{
+			const double DX = D.VX * kStep;
+			FRect B = D.Box();
+			double Allowed = DX;
+			bool bBlocked = false;
+			if (DX != 0)
+			{
+				ForEachSolid(*this, false, true, -1, [&](const FSolid& S)
+				{
+					if (!(B.Y0 < S.R.Y1 - kEps && B.Y1 > S.R.Y0 + kEps)) { return; }
+					const bool bEntering = DX > 0 ? (B.X1 <= S.R.X0 + kEps && B.X1 + DX > S.R.X0) : (B.X0 >= S.R.X1 - kEps && B.X0 + DX < S.R.X1);
+					if (!bEntering) { return; }
+					if (D.Grounded && S.R.Y0 >= B.Y1 - 6.0)   // step up a slope's stair
+					{
+						D.Y = S.R.Y0;
+						B = D.Box();
+						return;
+					}
+					const double Limit = DX > 0 ? S.R.X0 - B.X1 : S.R.X1 - B.X0;
+					if (DX > 0 ? Limit < Allowed : Limit > Allowed) { Allowed = Limit; bBlocked = true; }
+				});
+				if (DX > 0) { Allowed = std::max(Allowed, 0.0); } else { Allowed = std::min(Allowed, 0.0); }
+				D.X += Allowed;
+				if (bBlocked) { D.VX = 0; }
+			}
+		}
+		{
+			const double DY = D.VY * kStep;
+			const FRect B = D.Box();
+			double Allowed = DY;
+			bool bLanded = false;
+			ForEachSolid(*this, true, true, -1, [&](const FSolid& S)
+			{
+				if (!(B.X0 < S.R.X1 - kEps && B.X1 > S.R.X0 + kEps)) { return; }
+				if (DY > 0 && B.Y1 <= S.R.Y0 + 0.5 && B.Y1 + DY >= S.R.Y0)
+				{
+					const double Dist = S.R.Y0 - B.Y1;
+					if (Dist <= Allowed) { Allowed = Dist; bLanded = true; }
+				}
+				else if (DY < 0 && !S.OneWay && B.Y0 >= S.R.Y1 - kEps && B.Y0 + DY < S.R.Y1)
+				{
+					const double Dist = S.R.Y1 - B.Y0;
+					if (Dist > Allowed) { Allowed = Dist; D.VY = 0; }
+				}
+			});
+			D.Y += Allowed;
+			D.Grounded = bLanded;
+			if (bLanded) { D.VY = 0; }
+		}
+		const double Moved = std::fabs(D.X - StartX);
+		D.StuckTime = (Want != 0 && Moved < 0.2 * std::fabs(Want) * kStep) ? D.StuckTime + kStep : 0.0;
+		D.RunPhase += Moved * 0.11;
+		D.SitTime = (Want == 0 && D.Grounded) ? D.SitTime + kStep : 0.0;
+
+		// Arrived somewhere it was sent.
+		if (bArrived && D.Grounded)
+		{
+			if (D.Mode == EDogMode::GoStay)
+			{
+				D.Mode = EDogMode::Stay;
+			}
+			else if (D.Mode == EDogMode::TaskGo)
+			{
+				ThrowLever(D.Task, L.Levers[D.Task].X, L.Levers[D.Task].Y);
+				D.Task = -1;
+				D.Mode = EDogMode::Follow;
+				D.BarkTimer = 0.25;
+			}
+			else if (D.Mode == EDogMode::Point && D.BarkTimer <= 0)
+			{
+				D.BarkTimer = 1.3;
+				D.BarkFlash = 0.3;
+				Emit(EEvent::Bark, D.X + D.Facing * 14.0, D.Y - 14.0);
+			}
+		}
+
+		// Left behind, fallen in a hole, or stuck with no way round: catch the child up.
+		const bool bFell = D.Y > kDeathY;
+		if (D.Mode == EDogMode::Follow)
+		{
+			const bool bFar = std::fabs(P.X - D.X) > 520.0 || std::fabs(P.Y - D.Y) > 280.0;
+			const bool bStuck = !bArrived && (D.StuckTime > 0.5 || (D.Grounded && Want != 0 && D.VX == 0));
+			D.LostTime = (bFar || bStuck) ? D.LostTime + kStep : 0.0;
+			if ((bFell || D.LostTime > 1.2) && P.Grounded && Phase == EPhase::Playing)
+			{
+				PlaceDogNearPlayer();
+				Emit(EEvent::DogPoof, D.X, D.Y - 8.0);
+			}
+		}
+		else if (bFell)
+		{
+			D.Mode = EDogMode::Follow;
+			PlaceDogNearPlayer();
+			Emit(EEvent::DogPoof, D.X, D.Y - 8.0);
+		}
 	}
 }

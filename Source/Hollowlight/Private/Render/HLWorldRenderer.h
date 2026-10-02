@@ -1,4 +1,4 @@
-// EMBERHOME: draws the world - sky, parallax forest, fog, the play layer, rain, the lantern's light,
+// EMBERHOME: draws the world - sky, parallax forest (or warehouse / railway), fog, the play layer, rain, the lantern's light,
 // vignette and film grain - entirely from procedural shapes. (CLAUDE.md: Rendering)
 #pragma once
 
@@ -37,6 +37,7 @@ private:
 	void DrawSky(FHLDraw& D, const FHLRenderView& V);
 	void DrawShafts(FHLDraw& D, const FHLRenderView& V);
 	void DrawTreeLayer(FHLDraw& D, const FHLRenderView& V, int Layer);
+	void DrawBuiltLayer(FHLDraw& D, const FHLRenderView& V, int Layer, const FLinearColor& Col, double OX, double OY);
 	void DrawFogBand(FHLDraw& D, const FHLRenderView& V, int Layer);
 	void DrawPlayLayer(FHLDraw& D, const FHLRenderView& V);
 	void DrawGroundTop(FHLDraw& D, const FHLRenderView& V, double X0, double X1, double Top, uint32 Seed);
@@ -46,6 +47,9 @@ private:
 	void DrawCrumbles(FHLDraw& D, const FHLRenderView& V);
 	void DrawWater(FHLDraw& D, const FHLRenderView& V);
 	void DrawProps(FHLDraw& D, const FHLRenderView& V);
+	void DrawSlopes(FHLDraw& D, const FHLRenderView& V);
+	void DrawMechanisms(FHLDraw& D, const FHLRenderView& V);
+	void DrawDog(FHLDraw& D, const FHLRenderView& V);
 	void DrawPlayer(FHLDraw& D, const FHLRenderView& V);
 	void DrawForeground(FHLDraw& D, const FHLRenderView& V);
 	void DrawRain(FHLDraw& D, const FHLRenderView& V);

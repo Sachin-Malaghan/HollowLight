@@ -142,6 +142,7 @@ void FHLGame::StepWorld(double Dt, const FHLControls& Controls)
 			In.Dir = Controls.Dir;
 			In.Jump = Controls.Jump;
 			In.Down = Controls.Down;
+			In.Act = Controls.Act;
 		}
 		Sim.Events.clear();
 		Sim.Step(In);

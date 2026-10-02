@@ -13,23 +13,25 @@ namespace HL
 		int Dir = 0;        // -1 left, 0, +1 right
 		bool Jump = false;  // held
 		bool Down = false;  // held: slide when running, crouch when not, let go of a ledge when hanging
+		bool Act = false;   // held; the press picks up / uses a tool, throws a lever, or whistles for the dog
 	};
 
 	enum class EEvent : uint8_t
 	{
 		Jump, Land, Footstep, PushStart, TrapSnap, TrapSnapCrate, Death, Respawn,
 		Checkpoint, Goal, CrateLand, CrateSplash, CrateReset, Splash, CrumbleCreak, CrumbleFall, LogSwoosh,
-		Slide, Vault, Grab, Climb, Roll, HardLand
+		Slide, Vault, Grab, Climb, Roll, HardLand,
+		Lever, GateOpen, GateShut, PlateDown, PlateUp, Pickup, UseTool, Whistle, Bark, LadderStep, DogPoof
 	};
 
 	// What the body is doing, for the renderer.
-	enum class EPose : uint8_t { Stand, Slide, Crouch, Vault, Hang, Climb, Roll, Stunned };
+	enum class EPose : uint8_t { Stand, Slide, Crouch, Vault, Hang, Climb, Roll, Stunned, Ladder };
 
 	enum class EDeath : uint8_t { None, Pit, Trap, Log, Water };
 
 	enum class EPhase : uint8_t { Playing, Dying, Won };
 
-	enum class ESupport : uint8_t { None, Ground, Block, Crate, Platform, Crumble };
+	enum class ESupport : uint8_t { None, Ground, Block, Crate, Platform, Crumble, Gate };
 
 	struct FEvent
 	{
@@ -73,6 +75,14 @@ namespace HL
 		double StunTime = 0;
 		EPose Pose = EPose::Stand;
 
+		// 2.0 interaction
+		bool ActHeld = false;
+		int Ladder = -1;              // index of the ladder being climbed
+		double LadderPhase = 0;
+		int Carry = -1;               // index of the tool in hand
+		double IdleTime = 0;          // seconds without real progress (the dog's cue to hint)
+		double IdleX = 0;
+
 		FRect Box() const { return { X - kPlayerW * 0.5, Y - H, X + kPlayerW * 0.5, Y }; }
 	};
 
@@ -107,6 +117,43 @@ namespace HL
 		double Drop = 0, DropV = 0;    // visual fall offset while fallen
 	};
 
+	struct FGate
+	{
+		bool Latched = false;          // thrown open by a lever or a tool
+		bool Open = false;             // latched, or a plate is held down
+		double Amount = 0;             // 0 shut .. 1 fully raised
+	};
+
+	struct FItem
+	{
+		double X = 0, Y = 0;
+		bool Carried = false, Used = false;
+	};
+
+	enum class EDogMode : uint8_t { Follow, GoStay, Stay, TaskGo, Point };
+
+	// The companion. It cannot be hurt and never triggers a trap; if it is left behind it catches up.
+	struct FDog
+	{
+		bool Active = false;
+		double X = 0, Y = 0, VX = 0, VY = 0;
+		bool Grounded = false;
+		int Facing = 1;
+		EDogMode Mode = EDogMode::Follow;
+		double TargetX = 0;
+		int Task = -1;                 // lever it has been sent to throw
+		int PointTrap = -1;            // trap it is pointing at
+		double BarkTimer = 0;
+		double BarkFlash = 0;          // > 0 just after a bark (renderer)
+		double RunPhase = 0;
+		double StuckTime = 0;
+		double LostTime = 0;           // how long it has been unable to reach the child
+		double SitTime = 0;
+
+		static constexpr double W = 26.0, H = 16.0;
+		FRect Box() const { return { X - W * 0.5, Y - H, X + W * 0.5, Y }; }
+	};
+
 	class FSim
 	{
 	public:
@@ -123,6 +170,9 @@ namespace HL
 		double SpawnX() const;
 		bool IsFree(const FRect& R, int IgnoreCrate = -1) const;   // no full solid overlaps R
 		bool CanStand() const;
+		FRect GateBox(int I) const;                               // where the gate is now (raised when open)
+		bool GateSolid(int I) const { return Level->Gates[I].bBridge ? Gates[I].Amount > 0.9 : Gates[I].Amount < 0.55; }
+		int LadderAt(double X, double FeetY) const;               // ladder the child at (X, FeetY) can hold, or -1
 
 		const FLevelDef* Level = nullptr;
 		double Time = 0;
@@ -134,6 +184,12 @@ namespace HL
 		std::vector<FTrap> Traps;
 		std::vector<FPlatform> Platforms;
 		std::vector<FCrumble> Crumbles;
+		std::vector<FGate> Gates;
+		std::vector<bool> LeverOn;
+		std::vector<bool> PlateDown;
+		std::vector<FItem> Items;
+		std::vector<bool> SocketUsed;
+		FDog Dog;
 		int CheckpointIndex = -1;
 		double Lantern = 1;       // 0 = out
 		double Fade = 0;          // 0 = clear, 1 = black
@@ -152,6 +208,12 @@ namespace HL
 		void UpdateCrates();
 		void UpdatePlayer(const FInput& In);
 		void UpdateHang(const FInput& In);
+		void UpdateLadder(const FInput& In);
+		void UpdateMechanisms();
+		void DoAct();
+		void ThrowLever(int Index, double X, double Y);
+		void UpdateDog();
+		void PlaceDogNearPlayer();
 		void MovePlayerX(double DX, bool bAllowPush);
 		void MovePlayerY(double DY);
 		double MoveCrateX(int Index, double DX);

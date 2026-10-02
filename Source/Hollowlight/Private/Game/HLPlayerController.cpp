@@ -69,7 +69,7 @@ namespace
 			if (AHLPlayerController* PC = FindController(World)) { PC->Game.bAutopilotInPlay = Args.Num() == 0 || FCString::Atoi(*Args[0]) != 0; PC->Game.Pilot.Reset(); }
 		}));
 
-	FAutoConsoleCommandWithWorldAndArgs CmdPose(TEXT("hl.Debug.Pose"), TEXT("hl.Debug.Pose <-1..7>  draw the child in a fixed pose (-1 = off)"),
+	FAutoConsoleCommandWithWorldAndArgs CmdPose(TEXT("hl.Debug.Pose"), TEXT("hl.Debug.Pose <-1..8>  draw the child in a fixed pose (-1 = off)"),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			if (AHLPlayerController* PC = FindController(World)) { PC->Game.DebugPose = Args.Num() > 0 ? FCString::Atoi(*Args[0]) : -1; }
@@ -99,13 +99,23 @@ namespace
 		{ 0, 1, EHLScreen::Playing, true, 4.2f, TEXT("10_level01_traps") },
 		{ 0, 1, EHLScreen::Playing, true, 9.2f, TEXT("10_level01_crate") },
 		{ 0, 4, EHLScreen::Playing, true, 2.4f, TEXT("10_level01_log") },
-		{ 1, 0, EHLScreen::Playing, true, 3.4f, TEXT("11_level02") },
+		{ 1, 0, EHLScreen::Playing, true, 3.4f, TEXT("11_level02_slope") },
+		{ 1, 2, EHLScreen::Playing, true, 4.6f, TEXT("11_level02_lever") },
+		{ 1, 3, EHLScreen::Playing, true, 4.0f, TEXT("11_level02_dogdoor") },
 		{ 2, 1, EHLScreen::Playing, true, 2.6f, TEXT("12_level03") },
-		{ 3, 2, EHLScreen::Playing, true, 2.8f, TEXT("13_level04") },
+		{ 3, 2, EHLScreen::Playing, true, 4.2f, TEXT("13_level04_ladder") },
+		{ 3, 3, EHLScreen::Playing, true, 3.2f, TEXT("13_level04_handle") },
+		{ 3, 3, EHLScreen::Playing, true, 9.5f, TEXT("13_level04_bridge") },
 		{ 4, 0, EHLScreen::Playing, true, 3.6f, TEXT("14_level05") },
-		{ 5, 0, EHLScreen::Playing, true, 3.2f, TEXT("15_level06") },
-		{ 6, 0, EHLScreen::Playing, true, 4.4f, TEXT("16_level07") },
-		{ 7, 1, EHLScreen::Playing, true, 2.5f, TEXT("17_level08") },
+		{ 5, 0, EHLScreen::Playing, true, 4.0f, TEXT("15_level06_plate") },
+		{ 5, 2, EHLScreen::Playing, true, 4.0f, TEXT("15_level06_racking") },
+		{ 5, 3, EHLScreen::Playing, true, 3.0f, TEXT("15_level06_crate") },
+		{ 6, 0, EHLScreen::Playing, true, 3.0f, TEXT("16_level07_wagon") },
+		{ 6, 2, EHLScreen::Playing, true, 3.0f, TEXT("16_level07_hut") },
+		{ 6, 3, EHLScreen::Playing, true, 6.0f, TEXT("16_level07_bridge") },
+		{ 7, 1, EHLScreen::Playing, true, 3.0f, TEXT("17_level08_barriers") },
+		{ 7, 2, EHLScreen::Playing, true, 3.5f, TEXT("17_level08_footbridge") },
+		{ 7, 3, EHLScreen::Playing, true, 3.0f, TEXT("17_level08_gate") },
 		{ 8, 3, EHLScreen::Playing, true, 3.0f, TEXT("18_level09") },
 		{ 9, 6, EHLScreen::Playing, true, 3.5f, TEXT("19_level10") },
 		{ 2, -1, EHLScreen::Playing, false, 1.6f, TEXT("20_hud_card") },
@@ -119,6 +129,8 @@ namespace
 		{ 0, 0, EHLScreen::Playing, true, 1.2f, TEXT("31_pose_crouch"), (int32)HL::EPose::Crouch },
 		{ 0, 0, EHLScreen::Playing, true, 1.2f, TEXT("32_pose_hang"), (int32)HL::EPose::Hang },
 		{ 0, 0, EHLScreen::Playing, true, 1.2f, TEXT("33_pose_roll"), (int32)HL::EPose::Roll },
+		{ 0, 0, EHLScreen::Playing, true, 1.2f, TEXT("34_pose_ladder"), (int32)HL::EPose::Ladder },
+		{ 1, 0, EHLScreen::Playing, false, 6.0f, TEXT("35_hud_act_hint") },
 	};
 }
 
@@ -232,6 +244,7 @@ void AHLPlayerController::GatherInput(float DeltaTime, FHLControls& Controls, FH
 	const bool bJump = Down(EKeys::SpaceBar) || Down(EKeys::W) || Down(EKeys::Up) || Down(EKeys::Gamepad_FaceButton_Bottom);
 	const bool bDownKey = Down(EKeys::Down) || Down(EKeys::S) || Down(EKeys::LeftControl) || Down(EKeys::Gamepad_DPad_Down) ||
 		Down(EKeys::Gamepad_FaceButton_Left) || StickY < -0.5f;
+	const bool bActKey = Down(EKeys::E) || Down(EKeys::F) || Down(EKeys::Gamepad_FaceButton_Top);
 
 	Menu.Up = Pressed(EKeys::Up) || Pressed(EKeys::W) || Pressed(EKeys::Gamepad_DPad_Up) || (StickY > 0.5f && StickPrevY <= 0.5f);
 	Menu.Down = Pressed(EKeys::Down) || Pressed(EKeys::S) || Pressed(EKeys::Gamepad_DPad_Down) || (StickY < -0.5f && StickPrevY >= -0.5f);
@@ -274,7 +287,7 @@ void AHLPlayerController::GatherInput(float DeltaTime, FHLControls& Controls, FH
 	const FHLTouchLayout Layout = FHLTouchLayout::Compute(VX, VY, SafeArea);
 	const bool bControls = Game.IsGameplay() && ShouldShowTouch();
 	const bool bSwipes = Game.IsGameplay();
-	bTouchLeft = bTouchRight = bTouchJump = bTouchSlide = false;
+	bTouchLeft = bTouchRight = bTouchJump = bTouchSlide = bTouchAct = false;
 	bMenuTouchDown = false;
 	SwipeJumpTimer -= DeltaTime;
 	SwipeSlideTimer -= DeltaTime;
@@ -305,6 +318,7 @@ void AHLPlayerController::GatherInput(float DeltaTime, FHLControls& Controls, FH
 			{
 				if (Layout.HitJump(P)) { TouchRole[I] = ETouchRole::Jump; }
 				else if (Layout.HitSlide(P)) { TouchRole[I] = ETouchRole::Slide; }
+				else if (Layout.HitAct(P)) { TouchRole[I] = ETouchRole::Act; }
 				else if (Layout.HitLeft(P) || Layout.HitRight(P)) { TouchRole[I] = ETouchRole::Move; }
 			}
 		}
@@ -316,6 +330,7 @@ void AHLPlayerController::GatherInput(float DeltaTime, FHLControls& Controls, FH
 			{
 				if (TouchRole[I] == ETouchRole::Jump) { bTouchJump = true; }
 				else if (TouchRole[I] == ETouchRole::Slide) { bTouchSlide = true; }
+				else if (TouchRole[I] == ETouchRole::Act) { bTouchAct = true; }
 				else if (Layout.HitLeft(P)) { bTouchLeft = true; }
 				else if (Layout.HitRight(P)) { bTouchRight = true; }
 			}
@@ -357,6 +372,7 @@ void AHLPlayerController::GatherInput(float DeltaTime, FHLControls& Controls, FH
 	Controls.Dir = ((bRight || bTouchRight) ? 1 : 0) - ((bLeft || bTouchLeft) ? 1 : 0);
 	Controls.Jump = bJump || bTouchJump || SwipeJumpTimer > 0;
 	Controls.Down = bDownKey || bTouchSlide || SwipeSlideTimer > 0;
+	Controls.Act = bActKey || bTouchAct;
 }
 
 void AHLPlayerController::PlayerTick(float DeltaTime)

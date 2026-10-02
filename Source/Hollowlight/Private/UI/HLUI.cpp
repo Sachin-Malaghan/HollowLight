@@ -292,8 +292,15 @@ namespace
 
 	FString ControlsHint(const FHLUiContext& Ctx)
 	{
-		return Ctx.bShowTouch ? FString(TEXT("hold  ◀  ▶  to run   ·   JUMP   ·   SLIDE   ·   or swipe up / down"))
-		                      : FString(TEXT("← →  or  A D  to run   ·   SPACE  jump   ·   S  ↓  slide   ·   ESC  pause"));
+		return Ctx.bShowTouch ? FString(TEXT("hold  ◀  ▶  to run   ·   JUMP   ·   SLIDE   ·   ACT   ·   or swipe up / down"))
+		                      : FString(TEXT("← →  or  A D  to run   ·   SPACE  jump   ·   S  ↓  slide   ·   E  act   ·   ESC  pause"));
+	}
+
+	// Shown as the dog joins: what ACT is for.
+	FString ActHint(const FHLUiContext& Ctx)
+	{
+		return Ctx.bShowTouch ? FString(TEXT("ACT  uses what is in reach   ·   with nothing in reach it whistles: the dog stays, or comes back"))
+		                      : FString(TEXT("E  uses what is in reach   ·   with nothing in reach it whistles: the dog stays, or comes back"));
 	}
 
 	void DrawTitle(FScreenCtx& S)
@@ -530,12 +537,14 @@ namespace
 		Pad(L.Right, L.Radius, S.Ctx.bRightDown);
 		Pad(L.Jump, L.JumpRadius, S.Ctx.bJumpDown);
 		Pad(L.Slide, L.Radius, S.Ctx.bSlideDown);
+		Pad(L.Act, L.Radius, S.Ctx.bActDown);
 		const double A = L.Radius * 0.34;
 		const FLinearColor G(1, 1, 1, 0.6f);
 		S.D.Tri(L.Left.X - A, L.Left.Y, L.Left.X + A * 0.7, L.Left.Y - A, L.Left.X + A * 0.7, L.Left.Y + A, G);
 		S.D.Tri(L.Right.X + A, L.Right.Y, L.Right.X - A * 0.7, L.Right.Y - A, L.Right.X - A * 0.7, L.Right.Y + A, G);
 		S.Text.Draw(TEXT("JUMP"), L.Jump.X, L.Jump.Y, L.JumpRadius * 0.34, FLinearColor(1, 1, 1, 0.65f), 0.5, 250);
 		S.Text.Draw(TEXT("SLIDE"), L.Slide.X, L.Slide.Y, L.Radius * 0.34, FLinearColor(1, 1, 1, 0.65f), 0.5, 200);
+		S.Text.Draw(TEXT("ACT"), L.Act.X, L.Act.Y, L.Radius * 0.34, FLinearColor(1, 1, 1, 0.65f), 0.5, 200);
 	}
 
 	void DrawPlayingHud(FScreenCtx& S)
@@ -561,6 +570,16 @@ namespace
 			if (HintA > 0.001)
 			{
 				S.Text.Draw(ControlsHint(S.Ctx), S.W * 0.5, S.H * 0.12, S.H * 0.024, WithAlpha(Ink, HintA * 0.85), 0.5, 120);
+			}
+		}
+
+		// Second level: the dog arrives, and with it the ACT control.
+		if (G.LevelIndex == 1 && G.Sim.CheckpointIndex <= 1)
+		{
+			const double HintA = SmoothStep(4.6, 5.6, T) * (1.0 - SmoothStep(14.0, 15.5, T));
+			if (HintA > 0.001)
+			{
+				S.Text.Draw(ActHint(S.Ctx), S.W * 0.5, S.H * 0.12, S.H * 0.024, WithAlpha(Ink, HintA * 0.85), 0.5, 80);
 			}
 		}
 
@@ -595,6 +614,7 @@ FHLTouchLayout FHLTouchLayout::Compute(double W, double H, const FVector4& Safe)
 	L.Right = FVector2D(Safe.X + H * 0.16 + L.Radius * 2.5, Y);
 	L.Jump = FVector2D(W - Safe.Z - H * 0.18, Y - H * 0.02);
 	L.Slide = FVector2D(L.Jump.X - L.JumpRadius - L.Radius * 1.35, Y + H * 0.035);
+	L.Act = FVector2D(L.Jump.X - L.JumpRadius * 0.55 - L.Radius * 0.9, L.Jump.Y - L.JumpRadius - L.Radius * 1.3);
 	return L;
 }
 
@@ -611,16 +631,18 @@ bool FHLTouchLayout::HitRight(const FVector2D& P) const
 	return P.X >= Mid && P.X < Right.X + Radius * 1.8 && P.Y > Right.Y - Radius * 2.0;
 }
 
-bool FHLTouchLayout::HitJump(const FVector2D& P) const
+int32 FHLTouchLayout::NearestAction(const FVector2D& P) const
 {
-	// Whichever of JUMP / SLIDE is nearer wins, so the generous zones never overlap.
-	return FVector2D::Distance(P, Jump) < JumpRadius * 1.7 && FVector2D::Distance(P, Jump) / JumpRadius <= FVector2D::Distance(P, Slide) / Radius;
+	// Generous zones; whichever pad is nearest (relative to its size) wins, so they never overlap.
+	const double DJ = FVector2D::Distance(P, Jump) / JumpRadius, DS = FVector2D::Distance(P, Slide) / Radius, DA = FVector2D::Distance(P, Act) / Radius;
+	if (DJ <= DS && DJ <= DA) { return DJ < 1.7 ? 0 : -1; }
+	if (DS <= DA) { return DS < 1.6 ? 1 : -1; }
+	return DA < 1.6 ? 2 : -1;
 }
 
-bool FHLTouchLayout::HitSlide(const FVector2D& P) const
-{
-	return FVector2D::Distance(P, Slide) < Radius * 1.6 && FVector2D::Distance(P, Slide) / Radius < FVector2D::Distance(P, Jump) / JumpRadius;
-}
+bool FHLTouchLayout::HitJump(const FVector2D& P) const { return NearestAction(P) == 0; }
+bool FHLTouchLayout::HitSlide(const FVector2D& P) const { return NearestAction(P) == 1; }
+bool FHLTouchLayout::HitAct(const FVector2D& P) const { return NearestAction(P) == 2; }
 
 double FHLUI::SerifWordWidth(const FString& Word, double Height, double Tracking)
 {

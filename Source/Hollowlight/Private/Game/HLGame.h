@@ -27,6 +27,7 @@ struct FHLControls
 	int Dir = 0;
 	bool Jump = false;
 	bool Down = false;   // slide / crouch
+	bool Act = false;    // use / pick up / whistle for the dog
 };
 
 struct FHLMenuInput

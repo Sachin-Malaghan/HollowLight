@@ -50,7 +50,8 @@ Private/Tests   automation tests
   #4a4b47, #22231f; foreground at 1.35. Trees are seeded per cell so they never change. Fog bands, light
   shafts, ~170 rain streaks, lantern light (dark overlay with a hole + additive amber + flicker + embers),
   vignette, animated grain.
-- 400 world units of screen height, ground top y = 300 (y grows down). Gravity 1500, jump 560, run 240,
+- 400 world units of screen height, ground top y = 300 (y grows down). Gravity 1500, jump 560, run 215 (the brief said 240; slowed at the
+  user's request, 2026-10-02),
   push 115, fixed 1/120 s substeps, coyote 0.1 s, jump buffer 0.14 s, early release = short hop.
   Collision: one axis at a time, block only when entering a solid from the side you move toward.
 - Player collision box 18 x 44. Crate 56 x 56. Traps 40 wide. Log: rope 212, +/-0.95 rad, 2.6 s.
@@ -63,15 +64,20 @@ Private/Tests   automation tests
 | # | Name | Introduces |
 |---|---|---|
 | 1 | The Edge of the Wood | the brief's level exactly: pits, crate + ledge, jaw traps, one log |
-| 2 | Stepping Stones | stones over a gully, a stump that needs the crate, a jumpable pond |
+| 2 | A Stray | hills; the dog joins; a lever, then a lever only the dog can reach |
 | 3 | Teeth in the Grass | trap fields; push the crate over traps to spring them |
-| 4 | The Hanging Wood | many logs, two swinging against each other |
-| 5 | Drifting Boughs | moving platforms over wide gaps, a lift to a high shelf |
-| 6 | Rotten Branches | branches that give way 0.55 s after you land |
-| 7 | Still Water | water too wide to jump: push a crate in and it floats |
-| 8 | Into the Canopy | lifts into the canopy (vertical camera), rotten branches down |
+| 4 | Over the Ridge | slopes, a cliff ladder, a winch handle carried down to a drawbridge |
+| 5 | Still Water | water too wide to jump: push a crate in and it floats |
+| 6 | The Warehouse | a plate the dog holds, a crowbar up on the racking, a crate parked on a plate |
+| 7 | Sidings | railway yard: slide under a wagon, the dog into the signal hut, a swing bridge |
+| 8 | The Station | luggage on one plate, the dog on another, a footbridge, a crowbar gate, a ladder |
 | 9 | The Storm | everything, with lightning and heavy rain |
 | 10 | Homecoming | calmer; the rain thins, dawn warms the sky, a village lamp post |
+
+Puzzle levels carry a `Solution` script (go here, ACT, wait for the gate, climb...) that the autopilot
+follows; that script is the proof the level can be solved. `run.ps1 -base` (no script) must *fail* on a
+puzzle level - if the heuristic alone gets through, the puzzle does not block. Checkpoints are clean
+cuts: nothing behind one may be needed to finish from it.
 
 **Every level must be finishable by the autopilot without dying, from the start and from every
 checkpoint.** After any level or physics change run the harness (seconds) and then the automation tests:
@@ -81,7 +87,7 @@ powershell -ExecutionPolicy Bypass -File Tools\SimHarness\run.ps1            # a
 powershell -ExecutionPolicy Bypass -File Tools\SimHarness\run.ps1 -Level 7 -Trace
 ```
 The harness also has `-base` (heuristic only, no look-ahead) and `-fine <t0> <t1>` (per-step trace).
-Reach at full run: a full jump rises ~102 units and carries ~179 horizontally; a crate top is 56 above
+Reach at full run: a full jump rises ~102 units and carries ~160 horizontally (~198 at a sprint); a crate top is 56 above
 the ground; water surface 339 makes a floating crate's top flush with ground at 300.
 
 ## Build, test, run (Windows, UE 5.8 launcher build)
@@ -103,7 +109,7 @@ powershell -ExecutionPolicy Bypass -File Tools\Build\package.ps1 -Platform Win64
 
 Command line: `-HLLevel=N` starts level N, `-HLCapture [-HLCaptureTag=x]` runs the capture script and
 quits, `-HLForceTouch` shows the touch pads on desktop. Console: `hl.Play <level> [checkpoint]`,
-`hl.Title`, `hl.UnlockAll`, `hl.ResetProgress`, `hl.Autopilot 0|1`, `hl.HideUI 0|1`.
+`hl.Title`, `hl.UnlockAll`, `hl.ResetProgress`, `hl.Autopilot 0|1`, `hl.HideUI 0|1`, `hl.Debug.Pose <n>`.
 
 `DisableEnginePluginsByDefault` is on in the .uproject: engine plugins are opt-in. Add one only if the
 game needs it at runtime, and mark platform-specific ones `Optional` so the project still loads on a
@@ -131,15 +137,16 @@ Inspiration only: original levels and animation, nothing copied. Ship each stage
 |---|---|---|
 | 1 | Touch calibration ("touch the light"), visible traps | done (version code 3) |
 | 2 | Movement: sprint momentum, slide/crouch, vault, ledge grab + pull-up, roll | done (version code 3) |
-| 3 | Companion **dog** (user's choice), ladders, levers, tools you carry and use, ACT button | todo |
-| 4 | Sloped terrain, warehouse and railway-station settings, 5 new puzzle levels replacing the 5 most repetitive | todo |
+| 3 | Companion **dog** (user's choice), ladders, levers, plates, tools you carry and use, ACT button | done (version code 4, 2.0.0) |
+| 4 | Sloped terrain, warehouse and railway-station settings, 5 new puzzle levels replacing the 5 most repetitive | done (version code 4, 2.0.0) |
 
 Decisions: companion is a **dog** (sniffs out/barks at traps, holds pressure plates, squeezes through gaps to pull
 levers, fetches tools; it should also hint at how a level works). Controls are **buttons and swipes together**
-(pads: left/right, JUMP, SLIDE, later ACT; swipe up = jump, swipe down = slide).
+(pads: left/right, JUMP, SLIDE, ACT; swipe up = jump, swipe down = slide). ACT is E / F / gamepad Y.
 
-Movement rules now in the core (`HLTypes.h`): sprint 240 -> 300 after ~0.35 s of unbroken running; "down" at
->= 150 speed is a slide (body 22 high, 0.75 s, no steering), otherwise a crouch (crawl 90); obstacles up to 36
+Movement rules now in the core (`HLTypes.h`): sprint 215 -> 265 after ~0.35 s of unbroken running; "down" at
+>= 130 speed is a slide (body 22 high, 1.15 s, no steering; lengthened and the run slowed after the user's
+phone test), otherwise a crouch (crawl 90); obstacles up to 36
 high are vaulted at a run; in the air, hands within 18 below a ledge top catch it and pull up (0.1 s hang +
 0.3 s climb, "down" lets go), so ledges up to ~160 above the ground are climbable without a crate; landings
 faster than 720 need a roll (moving or holding down) or cost a 0.22 s stumble. The autopilot slides when
@@ -150,6 +157,21 @@ give `reported = Scale * true + Offset` per axis, stored in the save and inverte
 `AHLPlayerController::GatherInput`. Corrections smaller than a fingertip's wobble are ignored. This exists
 because the user's phone reported touches offset from where they landed and would not be connected for
 measurement — do not remove it without a real device test.
+
+Things to operate (`HLLevel.h`, `FSim::DoAct` / `UpdateMechanisms` / `UpdateDog`):
+- **ACT** does the first that applies: use the carried tool on a socket in reach, pick up a tool, throw a lever,
+  otherwise whistle. One tool is carried at a time. A whistle inside a `FDogTaskDef` range sends the dog to
+  throw that lever by a way only it fits; anywhere else it toggles the dog between *stay here* and *follow*.
+- **Gates** are doors (solid while shut, slide up) or, with `bBridge`, drawbridge decks (walkable once down).
+  A lever or a tool latches one open for good; a **plate** holds it open only while the child, a crate or the
+  dog stands on it.
+- **Slopes** are thin `bStep` grounds (collision) under one `FSlopeDef` (drawing). **Ladders**: hold jump to
+  climb, down to descend.
+- **The dog** cannot be hurt and never springs a trap. It follows, points at open jaws ahead and barks, fits
+  under a 16-high gap, and catches up with a poof if left behind. If the child dithers inside a `FHintDef`
+  range it runs to the thing that matters and barks at it - a nudge, never the whole answer.
+- Settings (`FTheme.Setting`): Forest, Warehouse, Railway, Station change only the backdrop layers, the floor
+  edge and how blocks are dressed (racking, wagons); still monochrome, still black silhouettes.
 
 ## Checklist
 

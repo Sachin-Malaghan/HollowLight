@@ -66,9 +66,9 @@ $shots = [ordered]@{
     '01-title' = @('desktop_01_title', 1600, 900)
     '02-edge-of-the-wood' = @('desktop_10_level01_log', 1600, 900)
     '03-touch-controls' = @('phone_20_hud_card', 1440, 720)
-    '04-teeth-in-the-grass' = @('desktop_12_level03', 1600, 900)
-    '05-drifting-boughs' = @('desktop_14_level05', 1600, 900)
-    '06-still-water' = @('desktop_16_level07', 1600, 900)
+    '04-a-stray' = @('desktop_11_level02_slope', 1600, 900)
+    '05-the-warehouse' = @('desktop_15_level06_racking', 1600, 900)
+    '06-sidings' = @('desktop_16_level07_wagon', 1600, 900)
     '07-the-storm' = @('desktop_18_level09', 1600, 900)
     '08-homecoming' = @('desktop_23_ending', 1600, 900)
 }
