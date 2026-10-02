@@ -11,13 +11,14 @@ class UFont;
 // On-screen touch buttons. Shared by the controller (hit testing) and the UI (drawing).
 struct FHLTouchLayout
 {
-	FVector2D Left, Right, Jump;   // centres (pixels)
+	FVector2D Left, Right, Jump, Slide;   // centres (pixels)
 	double Radius = 0, JumpRadius = 0;
 
 	static FHLTouchLayout Compute(double W, double H, const FVector4& Safe);
 	bool HitLeft(const FVector2D& P) const;
 	bool HitRight(const FVector2D& P) const;
 	bool HitJump(const FVector2D& P) const;
+	bool HitSlide(const FVector2D& P) const;
 };
 
 struct FHLUiContext
@@ -25,7 +26,7 @@ struct FHLUiContext
 	UFont* Font = nullptr;
 	bool bShowTouch = false;
 	bool bTouchDevice = false;
-	bool bLeftDown = false, bRightDown = false, bJumpDown = false;
+	bool bLeftDown = false, bRightDown = false, bJumpDown = false, bSlideDown = false;
 	bool bMenuTouchDown = false;               // a finger is on the screen outside the control pads
 	FVector2D MenuTouch = FVector2D::ZeroVector;
 	FVector4 Safe = FVector4(0, 0, 0, 0);   // left, top, right, bottom insets (pixels)

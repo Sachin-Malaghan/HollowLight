@@ -33,22 +33,25 @@ public:
 	UPROPERTY() TObjectPtr<UHLAudioSynth> Audio;
 
 	// Read by the HUD.
-	bool bTouchLeft = false, bTouchRight = false, bTouchJump = false;
+	bool bTouchLeft = false, bTouchRight = false, bTouchJump = false, bTouchSlide = false;
 	bool bMenuTouchDown = false;
 	FVector2D MenuTouch = FVector2D::ZeroVector;
 	FVector4 SafeArea = FVector4(0, 0, 0, 0);
 	bool bForceTouch = false;
 
 private:
-	void GatherInput(FHLControls& Controls, FHLMenuInput& Menu);
+	void GatherInput(float DeltaTime, FHLControls& Controls, FHLMenuInput& Menu);
 	void UpdateSafeArea(double W, double H);
 	void TickCapture(float DeltaTime);
 	void HandleBackground();
 
 	static constexpr int32 MaxTouches = 10;
 	bool TouchDown[MaxTouches] = {};
-	bool TouchIsControl[MaxTouches] = {};
-	bool TouchStartedOnJump[MaxTouches] = {};
+	enum class ETouchRole : uint8 { None, Move, Jump, Slide };
+	ETouchRole TouchRole[MaxTouches] = {};
+	bool TouchSwiped[MaxTouches] = {};
+	FVector2D TouchLastRaw[MaxTouches];
+	float SwipeJumpTimer = 0, SwipeSlideTimer = 0;
 	FVector2D TouchStart[MaxTouches];
 	FVector2D TouchLast[MaxTouches];
 	bool bTouchSeen = false;

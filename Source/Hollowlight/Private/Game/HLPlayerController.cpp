@@ -69,6 +69,12 @@ namespace
 			if (AHLPlayerController* PC = FindController(World)) { PC->Game.bAutopilotInPlay = Args.Num() == 0 || FCString::Atoi(*Args[0]) != 0; PC->Game.Pilot.Reset(); }
 		}));
 
+	FAutoConsoleCommandWithWorldAndArgs CmdPose(TEXT("hl.Debug.Pose"), TEXT("hl.Debug.Pose <-1..7>  draw the child in a fixed pose (-1 = off)"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (AHLPlayerController* PC = FindController(World)) { PC->Game.DebugPose = Args.Num() > 0 ? FCString::Atoi(*Args[0]) : -1; }
+		}));
+
 	FAutoConsoleCommandWithWorldAndArgs CmdHideUI(TEXT("hl.HideUI"), TEXT("hl.HideUI 0|1"),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
@@ -83,6 +89,7 @@ namespace
 		bool bHideUI;
 		float Wait;
 		const TCHAR* Name;  // nullptr = no screenshot for this step
+		int32 Pose = -1;    // force a pose for this shot (visual check of poses the autopilot never strikes)
 	};
 
 	// Level shots start at a checkpoint and let the autopilot run into something worth seeing.
@@ -107,6 +114,11 @@ namespace
 		{ 0, 6, EHLScreen::Playing, false, 9.0f, TEXT("22_complete") },
 		{ 9, 7, EHLScreen::Playing, false, 13.0f, TEXT("23_ending") },
 		{ -1, 0, EHLScreen::Settings, false, 0.8f, TEXT("24_settings") },
+		{ -1, 0, EHLScreen::Calibrate, false, 0.8f, TEXT("25_calibrate") },
+		{ 0, 0, EHLScreen::Playing, true, 1.2f, TEXT("30_pose_slide"), (int32)HL::EPose::Slide },
+		{ 0, 0, EHLScreen::Playing, true, 1.2f, TEXT("31_pose_crouch"), (int32)HL::EPose::Crouch },
+		{ 0, 0, EHLScreen::Playing, true, 1.2f, TEXT("32_pose_hang"), (int32)HL::EPose::Hang },
+		{ 0, 0, EHLScreen::Playing, true, 1.2f, TEXT("33_pose_roll"), (int32)HL::EPose::Roll },
 	};
 }
 
@@ -129,8 +141,11 @@ void AHLPlayerController::BeginPlay()
 	Save = Cast<UHLSaveGame>(UGameplayStatics::LoadGameFromSlot(UHLSaveGame::SlotName, 0));
 	if (!Save) { Save = Cast<UHLSaveGame>(UGameplayStatics::CreateSaveGameObject(UHLSaveGame::StaticClass())); }
 
+	bForceTouch = FParse::Param(FCommandLine::Get(), TEXT("HLForceTouch"));
 	if (Audio) { Audio->Start(); }
-	Game.Init(Save, Audio);
+	// Capture runs are scripted: never interrupt them with the calibration screen.
+	if (FParse::Param(FCommandLine::Get(), TEXT("HLCapture"))) { Save->bTouchCalibrated = true; }
+	Game.Init(Save, Audio, IsTouchDevice() || bForceTouch);
 
 	// Nothing in the 3D world is drawn; the HUD paints everything.
 	if (UGameViewportClient* VC = GetWorld()->GetGameViewport()) { VC->bDisableWorldRendering = true; }
@@ -204,7 +219,7 @@ void AHLPlayerController::UpdateSafeArea(double W, double H)
 	                    FMath::Max((double)Metrics.TitleSafePaddingSize.Z, Min), FMath::Max((double)Metrics.TitleSafePaddingSize.W, Min));
 }
 
-void AHLPlayerController::GatherInput(FHLControls& Controls, FHLMenuInput& Menu)
+void AHLPlayerController::GatherInput(float DeltaTime, FHLControls& Controls, FHLMenuInput& Menu)
 {
 	auto Down = [&](const FKey& K) { return IsInputKeyDown(K); };
 	auto Pressed = [&](const FKey& K) { return WasInputKeyJustPressed(K); };
@@ -215,6 +230,8 @@ void AHLPlayerController::GatherInput(FHLControls& Controls, FHLMenuInput& Menu)
 	const bool bLeft = Down(EKeys::Left) || Down(EKeys::A) || Down(EKeys::Gamepad_DPad_Left) || StickX < -0.35f;
 	const bool bRight = Down(EKeys::Right) || Down(EKeys::D) || Down(EKeys::Gamepad_DPad_Right) || StickX > 0.35f;
 	const bool bJump = Down(EKeys::SpaceBar) || Down(EKeys::W) || Down(EKeys::Up) || Down(EKeys::Gamepad_FaceButton_Bottom);
+	const bool bDownKey = Down(EKeys::Down) || Down(EKeys::S) || Down(EKeys::LeftControl) || Down(EKeys::Gamepad_DPad_Down) ||
+		Down(EKeys::Gamepad_FaceButton_Left) || StickY < -0.5f;
 
 	Menu.Up = Pressed(EKeys::Up) || Pressed(EKeys::W) || Pressed(EKeys::Gamepad_DPad_Up) || (StickY > 0.5f && StickPrevY <= 0.5f);
 	Menu.Down = Pressed(EKeys::Down) || Pressed(EKeys::S) || Pressed(EKeys::Gamepad_DPad_Down) || (StickY < -0.5f && StickPrevY >= -0.5f);
@@ -238,6 +255,7 @@ void AHLPlayerController::GatherInput(FHLControls& Controls, FHLMenuInput& Menu)
 			const FVector2D M(MX, MY);
 			Menu.bPointerValid = true;
 			Menu.Pointer = M;
+			Menu.RawPointer = M;
 			Menu.bPointerMoved = LastMouse.X >= 0 && FVector2D::DistSquared(M, LastMouse) > 1.0;
 			LastMouse = M;
 			if (WasInputKeyJustReleased(EKeys::LeftMouseButton)) { Menu.bClick = true; }
@@ -255,56 +273,90 @@ void AHLPlayerController::GatherInput(FHLControls& Controls, FHLMenuInput& Menu)
 	}
 	const FHLTouchLayout Layout = FHLTouchLayout::Compute(VX, VY, SafeArea);
 	const bool bControls = Game.IsGameplay() && ShouldShowTouch();
-	bTouchLeft = bTouchRight = bTouchJump = false;
+	const bool bSwipes = Game.IsGameplay();
+	bTouchLeft = bTouchRight = bTouchJump = bTouchSlide = false;
 	bMenuTouchDown = false;
+	SwipeJumpTimer -= DeltaTime;
+	SwipeSlideTimer -= DeltaTime;
+
+	// Touch calibration ("touch the light"): this screen reports  reported = Scale * true + Offset
+	// (in screen fractions), so invert it. Identity until calibrated.
+	auto Correct = [&](const FVector2D& Raw)
+	{
+		if (!Save || !Save->bTouchCalibrated || VX <= 0 || VY <= 0) { return Raw; }
+		return FVector2D((Raw.X / VX - Save->TouchOffsetX) / Save->TouchScaleX * VX,
+		                 (Raw.Y / VY - Save->TouchOffsetY) / Save->TouchScaleY * VY);
+	};
+
 	for (int32 I = 0; I < MaxTouches; ++I)
 	{
 		double X = 0, Y = 0;
 		bool bPressed = false;
 		GetInputTouchState((ETouchIndex::Type)(ETouchIndex::Touch1 + I), X, Y, bPressed);
-		const FVector2D P(X, Y);
+		const FVector2D Raw(X, Y);
+		const FVector2D P = Correct(Raw);
 		if (bPressed && !TouchDown[I])
 		{
 			bTouchSeen = true;
 			TouchStart[I] = P;
-			TouchIsControl[I] = bControls && (Layout.HitLeft(P) || Layout.HitRight(P) || Layout.HitJump(P));
-			TouchStartedOnJump[I] = bControls && Layout.HitJump(P);
+			TouchSwiped[I] = false;
+			TouchRole[I] = ETouchRole::None;
+			if (bControls)
+			{
+				if (Layout.HitJump(P)) { TouchRole[I] = ETouchRole::Jump; }
+				else if (Layout.HitSlide(P)) { TouchRole[I] = ETouchRole::Slide; }
+				else if (Layout.HitLeft(P) || Layout.HitRight(P)) { TouchRole[I] = ETouchRole::Move; }
+			}
 		}
 		if (bPressed)
 		{
 			TouchLast[I] = P;
-			if (TouchIsControl[I] && bControls)
+			TouchLastRaw[I] = Raw;
+			if (TouchRole[I] != ETouchRole::None && bControls)
 			{
-				if (TouchStartedOnJump[I]) { bTouchJump = true; }
+				if (TouchRole[I] == ETouchRole::Jump) { bTouchJump = true; }
+				else if (TouchRole[I] == ETouchRole::Slide) { bTouchSlide = true; }
 				else if (Layout.HitLeft(P)) { bTouchLeft = true; }
 				else if (Layout.HitRight(P)) { bTouchRight = true; }
 			}
-			else if (!TouchIsControl[I])
+			else if (TouchRole[I] == ETouchRole::None)
 			{
+				// Swipes anywhere else on the screen: up = jump, down = slide.
+				if (bSwipes && !TouchSwiped[I])
+				{
+					const FVector2D D = P - TouchStart[I];
+					if (FMath::Abs(D.Y) > VY * 0.07 && FMath::Abs(D.Y) > FMath::Abs(D.X) * 1.2)
+					{
+						TouchSwiped[I] = true;
+						if (D.Y < 0) { SwipeJumpTimer = 0.2f; } else { SwipeSlideTimer = 0.55f; }
+					}
+				}
 				bMenuTouchDown = true;
 				MenuTouch = P;
 				Menu.bPointerValid = true;
 				Menu.Pointer = P;
+				Menu.RawPointer = Raw;
 				Menu.bPointerMoved = true;
 			}
 		}
 		else if (TouchDown[I])
 		{
-			// A tap (not a control press) clicks whatever is under it.
-			if (!TouchIsControl[I] && FVector2D::Distance(TouchStart[I], TouchLast[I]) < VY * 0.06)
+			// A tap (not a control press or a swipe) clicks whatever is under it.
+			if (TouchRole[I] == ETouchRole::None && !TouchSwiped[I] && FVector2D::Distance(TouchStart[I], TouchLast[I]) < VY * 0.06)
 			{
 				Menu.bPointerValid = true;
 				Menu.Pointer = TouchLast[I];
+				Menu.RawPointer = TouchLastRaw[I];
 				Menu.bClick = true;
 			}
-			TouchIsControl[I] = false;
-			TouchStartedOnJump[I] = false;
+			TouchRole[I] = ETouchRole::None;
 		}
 		TouchDown[I] = bPressed;
 	}
 
 	Controls.Dir = ((bRight || bTouchRight) ? 1 : 0) - ((bLeft || bTouchLeft) ? 1 : 0);
-	Controls.Jump = bJump || bTouchJump;
+	Controls.Jump = bJump || bTouchJump || SwipeJumpTimer > 0;
+	Controls.Down = bDownKey || bTouchSlide || SwipeSlideTimer > 0;
 }
 
 void AHLPlayerController::PlayerTick(float DeltaTime)
@@ -318,13 +370,22 @@ void AHLPlayerController::PlayerTick(float DeltaTime)
 
 	FHLControls Controls;
 	FHLMenuInput Menu;
-	GatherInput(Controls, Menu);
+	GatherInput(DeltaTime, Controls, Menu);
 	if (bCapture)
 	{
 		Menu = FHLMenuInput();
 		TickCapture(DeltaTime);
 	}
 	Game.Tick(DeltaTime, Controls, Menu, Size.X, Size.Y);
+
+	if (Game.DebugPose >= 0)
+	{
+		HL::FPlayer& P = Game.Sim.P;
+		P.Pose = (HL::EPose)Game.DebugPose;
+		P.HangLedgeY = P.Y - HL::kPlayerH - 2.0;
+		P.HangTime = 0;
+		P.RollTime = 0.4 - FMath::Fmod(Game.RealTime, 0.4);
+	}
 
 	if (Game.bQuitRequested)
 	{
@@ -368,6 +429,7 @@ void AHLPlayerController::TickCapture(float DeltaTime)
 
 	const FCaptureShot& S = CaptureScript[CaptureStep];
 	Game.bHideUI = S.bHideUI;
+	Game.DebugPose = S.Pose;
 	if (S.Level >= 0)
 	{
 		if (S.Screen == EHLScreen::Title) { Game.StartAttract(S.Level); Game.GoTo(EHLScreen::Title); }

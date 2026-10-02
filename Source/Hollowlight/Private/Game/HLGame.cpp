@@ -19,7 +19,7 @@ int32 FHLGame::NumLevels() const
 	return (int32)GetLevels().size();
 }
 
-void FHLGame::Init(UHLSaveGame* InSave, IHLAudioSink* InAudio)
+void FHLGame::Init(UHLSaveGame* InSave, IHLAudioSink* InAudio, bool bTouchDevice)
 {
 	Save = InSave;
 	Audio = InAudio;
@@ -29,6 +29,13 @@ void FHLGame::Init(UHLSaveGame* InSave, IHLAudioSink* InAudio)
 	Save->LastLevel = FMath::Clamp(Save->LastLevel, 0, Save->UnlockedLevels - 1);
 	StartAttract(0);
 	GoTo(EHLScreen::Title);
+	if (bTouchDevice && !Save->bTouchCalibrated)
+	{
+		// First run on a phone: two taps on "the light" measure how this screen reports touches.
+		ReturnScreen = EHLScreen::Title;
+		CalibrateStep = 0;
+		GoTo(EHLScreen::Calibrate);
+	}
 }
 
 void FHLGame::SaveProgress()
@@ -89,6 +96,8 @@ void FHLGame::Tick(float DeltaSeconds, const FHLControls& Controls, const FHLMen
 	ScreenTime += Dt;
 	Scale = FMath::Max(1.0, ScreenH) / kViewHeight;
 	ViewW = FMath::Max(1.0, ScreenW) / Scale;
+	PixelW = FMath::Max(1.0, ScreenW);
+	PixelH = FMath::Max(1.0, ScreenH);
 
 	HandleMenu(Menu);
 
@@ -132,6 +141,7 @@ void FHLGame::StepWorld(double Dt, const FHLControls& Controls)
 		{
 			In.Dir = Controls.Dir;
 			In.Jump = Controls.Jump;
+			In.Down = Controls.Down;
 		}
 		Sim.Events.clear();
 		Sim.Step(In);
@@ -329,6 +339,16 @@ void FHLGame::Activate(const FHLButton& B)
 		Save->bReduceFlashing = !Save->bReduceFlashing;
 		SaveProgress();
 		break;
+	case EHLAction::Calibrate:
+		ReturnScreen = Screen;
+		CalibrateStep = 0;
+		GoTo(EHLScreen::Calibrate);
+		break;
+	case EHLAction::SkipCalibrate:
+		Save->bTouchCalibrated = true;
+		SaveProgress();
+		GoTo(ReturnScreen);
+		break;
 	case EHLAction::PrivacyPolicy:
 		// Store policy: the privacy policy must be reachable from inside the app.
 		FPlatformProcess::LaunchURL(TEXT("https://sachin-malaghan.github.io/HollowLight/privacy.html"), nullptr, nullptr);
@@ -345,8 +365,48 @@ void FHLGame::Activate(const FHLButton& B)
 	}
 }
 
+void FHLGame::HandleCalibration(const FHLMenuInput& Menu)
+{
+	if (!Menu.bClick || ScreenTime < 0.4) { return; }
+	const FVector2D Raw(Menu.RawPointer.X / PixelW, Menu.RawPointer.Y / PixelH);
+	const FVector2D Target = CalibrateTarget(CalibrateStep);
+	// Ignore stray taps far from the light (the SKIP button is handled as a normal button).
+	if (FMath::Abs(Raw.X - Target.X) > 0.2 || FMath::Abs(Raw.Y - Target.Y) > 0.3) { return; }
+	CalibrateRaw[CalibrateStep] = Raw;
+	if (Audio) { Audio->OnUiSound(EHLUiSound::Select); }
+	if (CalibrateStep == 0)
+	{
+		CalibrateStep = 1;
+		ScreenTime = 0;
+		return;
+	}
+
+	// reported = Scale * true + Offset, solved per axis from the two taps.
+	const FVector2D T0 = CalibrateTarget(0), T1 = CalibrateTarget(1);
+	double SX = (CalibrateRaw[1].X - CalibrateRaw[0].X) / (T1.X - T0.X);
+	double SY = (CalibrateRaw[1].Y - CalibrateRaw[0].Y) / (T1.Y - T0.Y);
+	double OX = CalibrateRaw[0].X - SX * T0.X;
+	double OY = CalibrateRaw[0].Y - SY * T0.Y;
+	// A fingertip is not a precise pointer: only correct errors bigger than a finger's wobble, and
+	// refuse anything implausible.
+	const bool bSaneX = SX > 0.8 && SX < 1.25 && FMath::Abs(OX) < 0.15;
+	const bool bSaneY = SY > 0.8 && SY < 1.25 && FMath::Abs(OY) < 0.15;
+	const double ErrX = FMath::Max(FMath::Abs(CalibrateRaw[0].X - T0.X), FMath::Abs(CalibrateRaw[1].X - T1.X));
+	const double ErrY = FMath::Max(FMath::Abs(CalibrateRaw[0].Y - T0.Y), FMath::Abs(CalibrateRaw[1].Y - T1.Y));
+	if (!bSaneX || ErrX < 0.012) { SX = 1; OX = 0; }
+	if (!bSaneY || ErrY < 0.02) { SY = 1; OY = 0; }
+	Save->TouchScaleX = (float)SX;
+	Save->TouchOffsetX = (float)OX;
+	Save->TouchScaleY = (float)SY;
+	Save->TouchOffsetY = (float)OY;
+	Save->bTouchCalibrated = true;
+	SaveProgress();
+	GoTo(ReturnScreen);
+}
+
 void FHLGame::HandleMenu(const FHLMenuInput& Menu)
 {
+	if (Screen == EHLScreen::Calibrate) { HandleCalibration(Menu); }
 	if (Screen == EHLScreen::Playing && (Menu.Pause || Menu.Back))
 	{
 		GoTo(EHLScreen::Paused);
@@ -362,7 +422,7 @@ void FHLGame::HandleMenu(const FHLMenuInput& Menu)
 	{
 		for (int32 I = 0; I < N; ++I)
 		{
-			if (Buttons[I].bEnabled && Buttons[I].Box.IsInside(Menu.Pointer)) { Hover = I; break; }
+			if (Buttons[I].bEnabled && Buttons[I].Box.IsInside(Screen == EHLScreen::Calibrate ? Menu.RawPointer : Menu.Pointer)) { Hover = I; break; }
 		}
 	}
 	if (Menu.bPointerMoved && Hover >= 0 && Hover != Focus)

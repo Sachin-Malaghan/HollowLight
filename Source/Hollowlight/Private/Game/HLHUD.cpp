@@ -57,6 +57,7 @@ void AHLHUD::DrawHUD()
 		Ctx.bLeftDown = PC->bTouchLeft;
 		Ctx.bRightDown = PC->bTouchRight;
 		Ctx.bJumpDown = PC->bTouchJump;
+		Ctx.bSlideDown = PC->bTouchSlide;
 		Ctx.bMenuTouchDown = PC->bMenuTouchDown;
 		Ctx.MenuTouch = PC->MenuTouch;
 		Ctx.Safe = PC->SafeArea;

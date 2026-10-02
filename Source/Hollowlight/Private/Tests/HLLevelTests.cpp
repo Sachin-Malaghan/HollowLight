@@ -138,4 +138,67 @@ bool FHLJumpPhysics::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHLParkour, "Hollowlight.Physics.SlideVaultLedgeGrab", HLTests::Flags)
+bool FHLParkour::RunTest(const FString& Parameters)
+{
+	FLevelDef Base;
+	Base.Ground = { { -1000, 3000, 300 } };
+	Base.StartX = 0;
+	Base.GoalX = 5000;
+	Base.MinX = -1000;
+	Base.MaxX = 5000;
+
+	auto Run = [](const FLevelDef& L, double Seconds, const TFunction<FInput(const FSim&)>& Policy, TArray<EEvent>& OutEvents)
+	{
+		FSim Sim;
+		Sim.Load(L);
+		for (int32 I = 0; I < (int32)(Seconds / kStep); ++I)
+		{
+			const FInput In = Policy(Sim);
+			Sim.Events.clear();
+			Sim.Step(In);
+			for (const HL::FEvent& E : Sim.Events) { OutEvents.Add(E.Type); }
+		}
+		return Sim;
+	};
+
+	// Sprint: unbroken running builds from 240 to 300.
+	{
+		TArray<EEvent> Ev;
+		const FSim Sim = Run(Base, 2.5, [](const FSim&) { FInput In; In.Dir = 1; return In; }, Ev);
+		TestNearlyEqual(TEXT("sprint speed"), Sim.P.VX, kSprintSpeed, 1.0);
+	}
+	// A beam 26 above the ground blocks a standing child but a slide passes under it.
+	{
+		FLevelDef L = Base;
+		L.Blocks = { { 400, 60, 470, 274 } };
+		TArray<EEvent> Ev;
+		const FSim Stand = Run(L, 3.0, [](const FSim&) { FInput In; In.Dir = 1; return In; }, Ev);
+		TestTrue(TEXT("standing is blocked by the beam"), Stand.P.X < 400.0);
+		Ev.Reset();
+		const FSim Slid = Run(L, 3.0, [](const FSim& S) { FInput In; In.Dir = 1; In.Down = S.P.X > 300.0 && S.P.X < 500.0; return In; }, Ev);
+		TestTrue(TEXT("sliding passes under the beam"), Slid.P.X > 480.0);
+		TestTrue(TEXT("slide event"), Ev.Contains(EEvent::Slide));
+	}
+	// A knee-high step is vaulted without stopping.
+	{
+		FLevelDef L = Base;
+		L.Blocks = { { 400, 270, 460, 300 } };
+		TArray<EEvent> Ev;
+		const FSim Sim = Run(L, 3.0, [](const FSim&) { FInput In; In.Dir = 1; return In; }, Ev);
+		TestTrue(TEXT("vaulted the step"), Sim.P.X > 480.0 && Ev.Contains(EEvent::Vault));
+	}
+	// A ledge too high to jump onto (140) is caught by the hands and climbed.
+	{
+		FLevelDef L = Base;
+		L.Ground = { { -1000, 500, 300 }, { 500, 3000, 160 } };
+		TArray<EEvent> Ev;
+		const FSim Sim = Run(L, 4.0, [](const FSim& S) { FInput In; In.Dir = 1; In.Jump = S.P.X > 440.0 && (S.P.Grounded || S.P.VY < 0); return In; }, Ev);
+		TestTrue(TEXT("grabbed the ledge"), Ev.Contains(EEvent::Grab));
+		TestTrue(TEXT("climbed"), Ev.Contains(EEvent::Climb));
+		TestTrue(TEXT("ended up on top of the ledge"), Sim.P.X > 520.0 && Sim.P.Y <= 160.5);   // the test's input keeps hopping
+	}
+	return true;
+}
+
 #endif

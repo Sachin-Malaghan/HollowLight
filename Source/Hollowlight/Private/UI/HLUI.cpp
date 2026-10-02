@@ -292,8 +292,8 @@ namespace
 
 	FString ControlsHint(const FHLUiContext& Ctx)
 	{
-		return Ctx.bShowTouch ? FString(TEXT("hold  ◀  ▶  to walk   ·   tap  JUMP"))
-		                      : FString(TEXT("← →  or  A D  to move   ·   SPACE  W  ↑  to jump   ·   ESC  pause"));
+		return Ctx.bShowTouch ? FString(TEXT("hold  ◀  ▶  to run   ·   JUMP   ·   SLIDE   ·   or swipe up / down"))
+		                      : FString(TEXT("← →  or  A D  to run   ·   SPACE  jump   ·   S  ↓  slide   ·   ESC  pause"));
 	}
 
 	void DrawTitle(FScreenCtx& S)
@@ -405,8 +405,14 @@ namespace
 		S.Button(FString::Printf(TEXT("TOUCH CONTROLS   %s"), Touch), S.W * 0.5, Y + Step * 2, Px, EHLAction::CycleTouch, 0, true, In);
 		S.Button(FString::Printf(TEXT("FILM GRAIN   %s"), OnOff(Sv->bFilmGrain)), S.W * 0.5, Y + Step * 3, Px, EHLAction::ToggleGrain, 0, true, In);
 		S.Button(FString::Printf(TEXT("REDUCE FLASHING   %s"), OnOff(Sv->bReduceFlashing)), S.W * 0.5, Y + Step * 4, Px, EHLAction::ToggleFlashing, 0, true, In);
-		S.Button(TEXT("PRIVACY POLICY"), S.W * 0.5, Y + Step * 5.2, Px, EHLAction::PrivacyPolicy, 0, true, In);
-		S.Button(TEXT("CREDITS"), S.W * 0.5, Y + Step * 6.1, Px, EHLAction::Credits, 0, true, In);
+		double Row = 5.0;
+		if (S.Ctx.bShowTouch || S.Ctx.bTouchDevice)
+		{
+			S.Button(TEXT("CALIBRATE TOUCH"), S.W * 0.5, Y + Step * Row, Px, EHLAction::Calibrate, 0, true, In);
+			Row += 1.0;
+		}
+		S.Button(TEXT("PRIVACY POLICY"), S.W * 0.5, Y + Step * Row, Px, EHLAction::PrivacyPolicy, 0, true, In);
+		S.Button(TEXT("CREDITS"), S.W * 0.5, Y + Step * (Row + 1.0), Px, EHLAction::Credits, 0, true, In);
 		DrawBack(S, In);
 	}
 
@@ -431,6 +437,31 @@ namespace
 			Y += S.H * 0.055;
 		}
 		DrawBack(S, In);
+	}
+
+	// "Touch the light": two taps on known spots measure how this screen reports touches.
+	void DrawCalibrate(FScreenCtx& S)
+	{
+		FHLGame& G = S.Game;
+		const double In = SmoothStep(0.0, 0.4, G.ScreenTime);
+		const float A = (float)In;
+		S.Darken(0.82);
+		const FVector2D T = FHLGame::CalibrateTarget(G.CalibrateStep);
+		const double X = T.X * S.W, Y = T.Y * S.H;
+		const float Pulse = (float)(0.8 + 0.2 * FMath::Sin(G.RealTime * 4.0)) * A;
+		S.D.SetTransform(1, 0, 0);
+		S.D.SetBlend(SE_BLEND_Additive);
+		S.D.Glow(X, Y, S.H * 0.16, FLinearColor(0.75f * Pulse, 0.45f * Pulse, 0.14f * Pulse, 1), FLinearColor(0, 0, 0, 1), 32);
+		S.D.Glow(X, Y, S.H * 0.035, FLinearColor(1.f * A, 0.78f * A, 0.42f * A, 1), FLinearColor(0, 0, 0, 1), 20);
+		S.D.SetBlend(SE_BLEND_Translucent);
+		// a thin cross so the exact centre is clear
+		const double C = S.H * 0.05, W = FMath::Max(1.0, S.U * 0.4);
+		S.D.Rect(X - C, Y - W, X + C, Y + W, WithAlpha(Ink, 0.5 * In));
+		S.D.Rect(X - W, Y - C, X + W, Y + C, WithAlpha(Ink, 0.5 * In));
+		S.Text.Draw(TEXT("Touch the light"), S.W * 0.5, S.H * 0.14, S.H * 0.05, WithAlpha(Ink, In), 0.5, 120);
+		S.Text.Draw(G.CalibrateStep == 0 ? TEXT("tap the centre of the glow  ·  1 of 2") : TEXT("and once more  ·  2 of 2"),
+			S.W * 0.5, S.H * 0.22, S.H * 0.024, WithAlpha(Dim, In), 0.5, 160);
+		S.Button(TEXT("SKIP"), S.W * 0.5, S.H - S.SafeB() - S.H * 0.09, S.H * 0.026, EHLAction::SkipCalibrate, 0, true, In * 0.8);
 	}
 
 	void DrawPaused(FScreenCtx& S)
@@ -498,11 +529,13 @@ namespace
 		Pad(L.Left, L.Radius, S.Ctx.bLeftDown);
 		Pad(L.Right, L.Radius, S.Ctx.bRightDown);
 		Pad(L.Jump, L.JumpRadius, S.Ctx.bJumpDown);
+		Pad(L.Slide, L.Radius, S.Ctx.bSlideDown);
 		const double A = L.Radius * 0.34;
 		const FLinearColor G(1, 1, 1, 0.6f);
 		S.D.Tri(L.Left.X - A, L.Left.Y, L.Left.X + A * 0.7, L.Left.Y - A, L.Left.X + A * 0.7, L.Left.Y + A, G);
 		S.D.Tri(L.Right.X + A, L.Right.Y, L.Right.X - A * 0.7, L.Right.Y - A, L.Right.X - A * 0.7, L.Right.Y + A, G);
 		S.Text.Draw(TEXT("JUMP"), L.Jump.X, L.Jump.Y, L.JumpRadius * 0.34, FLinearColor(1, 1, 1, 0.65f), 0.5, 250);
+		S.Text.Draw(TEXT("SLIDE"), L.Slide.X, L.Slide.Y, L.Radius * 0.34, FLinearColor(1, 1, 1, 0.65f), 0.5, 200);
 	}
 
 	void DrawPlayingHud(FScreenCtx& S)
@@ -561,6 +594,7 @@ FHLTouchLayout FHLTouchLayout::Compute(double W, double H, const FVector4& Safe)
 	L.Left = FVector2D(Safe.X + H * 0.16, Y);
 	L.Right = FVector2D(Safe.X + H * 0.16 + L.Radius * 2.5, Y);
 	L.Jump = FVector2D(W - Safe.Z - H * 0.18, Y - H * 0.02);
+	L.Slide = FVector2D(L.Jump.X - L.JumpRadius - L.Radius * 1.35, Y + H * 0.035);
 	return L;
 }
 
@@ -579,7 +613,13 @@ bool FHLTouchLayout::HitRight(const FVector2D& P) const
 
 bool FHLTouchLayout::HitJump(const FVector2D& P) const
 {
-	return FVector2D::Distance(P, Jump) < JumpRadius * 1.7;
+	// Whichever of JUMP / SLIDE is nearer wins, so the generous zones never overlap.
+	return FVector2D::Distance(P, Jump) < JumpRadius * 1.7 && FVector2D::Distance(P, Jump) / JumpRadius <= FVector2D::Distance(P, Slide) / Radius;
+}
+
+bool FHLTouchLayout::HitSlide(const FVector2D& P) const
+{
+	return FVector2D::Distance(P, Slide) < Radius * 1.6 && FVector2D::Distance(P, Slide) / Radius < FVector2D::Distance(P, Jump) / JumpRadius;
 }
 
 double FHLUI::SerifWordWidth(const FString& Word, double Height, double Tracking)
@@ -623,6 +663,7 @@ void FHLUI::Draw(FHLDraw& D, UCanvas* Canvas, FHLGame& Game, const FHLUiContext&
 	case EHLScreen::Paused: DrawPaused(S); break;
 	case EHLScreen::LevelComplete: DrawResults(S, false); break;
 	case EHLScreen::Ending: DrawResults(S, true); break;
+	case EHLScreen::Calibrate: DrawCalibrate(S); break;
 	}
 	Game.Focus = FMath::Clamp(Game.Focus, 0, FMath::Max(0, Game.Buttons.Num() - 1));
 

@@ -12,13 +12,18 @@ namespace HL
 	{
 		int Dir = 0;        // -1 left, 0, +1 right
 		bool Jump = false;  // held
+		bool Down = false;  // held: slide when running, crouch when not, let go of a ledge when hanging
 	};
 
 	enum class EEvent : uint8_t
 	{
 		Jump, Land, Footstep, PushStart, TrapSnap, TrapSnapCrate, Death, Respawn,
-		Checkpoint, Goal, CrateLand, CrateSplash, CrateReset, Splash, CrumbleCreak, CrumbleFall, LogSwoosh
+		Checkpoint, Goal, CrateLand, CrateSplash, CrateReset, Splash, CrumbleCreak, CrumbleFall, LogSwoosh,
+		Slide, Vault, Grab, Climb, Roll, HardLand
 	};
+
+	// What the body is doing, for the renderer.
+	enum class EPose : uint8_t { Stand, Slide, Crouch, Vault, Hang, Climb, Roll, Stunned };
 
 	enum class EDeath : uint8_t { None, Pit, Trap, Log, Water };
 
@@ -49,7 +54,26 @@ namespace HL
 		double AirTime = 0;
 		double LastFootstep = 0;
 
-		FRect Box() const { return { X - kPlayerW * 0.5, Y - kPlayerH, X + kPlayerW * 0.5, Y }; }
+		// 2.0 movement
+		double H = kPlayerH;          // current body height (kLowH while sliding / crouched)
+		bool Low = false;             // sliding or crouched
+		bool Sliding = false;
+		double SlideTime = 0;
+		double SprintTime = 0;        // seconds of unbroken running
+		double VaultTimer = 0;        // > 0 just after a vault: keep the momentum
+		int Hang = 0;                 // 0 no, 1 hanging from a ledge, 2 pulling up
+		int HangDir = 1;
+		double HangTime = 0;
+		double HangLedgeY = 0;        // top of the ledge being held
+		double HangFromX = 0, HangToX = 0;
+		ESupport HangKind = ESupport::None;
+		int HangIndex = -1;
+		double GrabCooldown = 0;
+		double RollTime = 0;
+		double StunTime = 0;
+		EPose Pose = EPose::Stand;
+
+		FRect Box() const { return { X - kPlayerW * 0.5, Y - H, X + kPlayerW * 0.5, Y }; }
 	};
 
 	struct FCrate
@@ -97,6 +121,8 @@ namespace HL
 		FRect PlatformBox(int I) const;
 		FRect CrumbleBox(int I) const;
 		double SpawnX() const;
+		bool IsFree(const FRect& R, int IgnoreCrate = -1) const;   // no full solid overlaps R
+		bool CanStand() const;
 
 		const FLevelDef* Level = nullptr;
 		double Time = 0;
@@ -125,6 +151,7 @@ namespace HL
 		void UpdateMovers();
 		void UpdateCrates();
 		void UpdatePlayer(const FInput& In);
+		void UpdateHang(const FInput& In);
 		void MovePlayerX(double DX, bool bAllowPush);
 		void MovePlayerY(double DY);
 		double MoveCrateX(int Index, double DX);

@@ -177,6 +177,26 @@ void UHLAudioSynth::OnSimEvent(const HL::FEvent& E, float Pan, float Distance)
 		V.Noise = 1; V.Cut1 = 0.7f; V.Cut2 = 0.12f; V.Dur = 0.09f; V.Amp = 0.25f * Near; Queue(V);
 		V.Cut1 = 0.08f; V.Cut2 = 0.01f; V.Delay = 0.05f; V.Dur = 0.35f; V.Amp = 0.12f * Near; Queue(V);
 		break;
+	case EEvent::Slide:
+		V.Noise = 1; V.Cut1 = 0.09f; V.Cut2 = 0.012f; V.Attack = 0.02f; V.Dur = 0.55f; V.Amp = 0.12f; Queue(V);   // cloth on wet grass
+		break;
+	case EEvent::Vault:
+		V.Noise = 0.8f; V.Tone = 0.1f; V.F0 = 260; V.F1 = 420; V.Cut1 = 0.12f; V.Cut2 = 0.03f; V.Attack = 0.02f; V.Dur = 0.14f; V.Amp = 0.07f; Queue(V);
+		break;
+	case EEvent::Grab:
+		V.Tone = 1; V.F0 = 150; V.F1 = 90; V.Dur = 0.09f; V.Amp = 0.12f; Queue(V);
+		V.Tone = 0; V.Noise = 1; V.Cut1 = 0.2f; V.Cut2 = 0.04f; V.Dur = 0.06f; V.Amp = 0.07f; Queue(V);
+		break;
+	case EEvent::Climb:
+		V.Noise = 1; V.Cut1 = 0.07f; V.Cut2 = 0.015f; V.Attack = 0.05f; V.Dur = 0.3f; V.Amp = 0.07f; Queue(V);
+		break;
+	case EEvent::Roll:
+		V.Noise = 1; V.Cut1 = 0.06f; V.Cut2 = 0.01f; V.Attack = 0.03f; V.Dur = 0.4f; V.Amp = 0.11f; Queue(V);
+		break;
+	case EEvent::HardLand:
+		V.Tone = 1; V.F0 = 90; V.F1 = 38; V.Dur = 0.22f; V.Amp = 0.3f; Queue(V);
+		V.Tone = 0; V.Noise = 1; V.Cut1 = 0.1f; V.Cut2 = 0.015f; V.Dur = 0.16f; V.Amp = 0.12f; Queue(V);
+		break;
 	case EEvent::LogSwoosh:
 		V.Noise = 1; V.Cut1 = 0.07f; V.Cut2 = 0.025f; V.Attack = 0.16f; V.Dur = 0.5f; V.Amp = 0.13f * Near * Near; V.Wet = 0.2f; Queue(V);
 		break;

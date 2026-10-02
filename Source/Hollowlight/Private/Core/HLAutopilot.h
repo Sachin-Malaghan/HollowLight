@@ -29,6 +29,7 @@ namespace HL
 			bool bJump = false;
 			bool bSuppressJump = false;
 			double Duration = 0;    // 0 = pure heuristic
+			bool bDown = false;     // slide / stay low
 		};
 		struct FOutcome
 		{

@@ -23,6 +23,21 @@ namespace HL
 	constexpr double kCoyoteTime = 0.10;
 	constexpr double kJumpBufferTime = 0.14;
 
+	// Movement added in 2.0 (momentum, slide, vault, ledge grab, roll).
+	constexpr double kSprintSpeed = 300.0;      // reached after running without stopping
+	constexpr double kSprintDelay = 0.35;       // seconds at a run before speed starts to build
+	constexpr double kSprintRamp = 0.8;         // seconds from run to full sprint
+	constexpr double kCrawlSpeed = 90.0;
+	constexpr double kSlideMinSpeed = 150.0;    // slower than this and "down" is a crouch, not a slide
+	constexpr double kSlideTime = 0.75;
+	constexpr double kSlideFriction = 170.0;
+	constexpr double kLowH = 22.0;              // body height while sliding or crouched
+	constexpr double kVaultMax = 36.0;          // obstacles up to this high are vaulted at a run
+	constexpr double kGrabReach = 18.0;         // how far below a ledge the hands can still catch it
+	constexpr double kHangTime = 0.10;
+	constexpr double kClimbTime = 0.30;
+	constexpr double kHardLandSpeed = 720.0;    // landing faster than this needs a roll
+
 	constexpr double kPlayerW = 18.0;
 	constexpr double kPlayerH = 44.0;
 	constexpr double kCrateSize = 56.0;

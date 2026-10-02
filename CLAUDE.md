@@ -122,6 +122,35 @@ machine without that platform installed.
 - **Website**: `Website/` is a static site (no third-party requests). `.github/workflows/pages.yml`
   deploys it to GitHub Pages on push to main. `Website/privacy.html` is the store privacy-policy URL.
 
+## EMBERHOME 2.0 (asked for 2026-10-02) — staged update
+
+The user wants Vector-style movement, LIMBO-style thinking puzzles, a companion animal, and new settings.
+Inspiration only: original levels and animation, nothing copied. Ship each stage to the closed-test track.
+
+| Stage | Content | Status |
+|---|---|---|
+| 1 | Touch calibration ("touch the light"), visible traps | done (version code 3) |
+| 2 | Movement: sprint momentum, slide/crouch, vault, ledge grab + pull-up, roll | done (version code 3) |
+| 3 | Companion **dog** (user's choice), ladders, levers, tools you carry and use, ACT button | todo |
+| 4 | Sloped terrain, warehouse and railway-station settings, 5 new puzzle levels replacing the 5 most repetitive | todo |
+
+Decisions: companion is a **dog** (sniffs out/barks at traps, holds pressure plates, squeezes through gaps to pull
+levers, fetches tools; it should also hint at how a level works). Controls are **buttons and swipes together**
+(pads: left/right, JUMP, SLIDE, later ACT; swipe up = jump, swipe down = slide).
+
+Movement rules now in the core (`HLTypes.h`): sprint 240 -> 300 after ~0.35 s of unbroken running; "down" at
+>= 150 speed is a slide (body 22 high, 0.75 s, no steering), otherwise a crouch (crawl 90); obstacles up to 36
+high are vaulted at a run; in the air, hands within 18 below a ledge top catch it and pull up (0.1 s hang +
+0.3 s climb, "down" lets go), so ledges up to ~160 above the ground are climbable without a crate; landings
+faster than 720 need a roll (moving or holding down) or cost a 0.22 s stumble. The autopilot slides when
+standing height is blocked but 22 is clear, and goes back for a crate it left behind at wide water.
+
+Touch calibration: first launch on a touch device (and Settings -> CALIBRATE TOUCH) shows two targets; the taps
+give `reported = Scale * true + Offset` per axis, stored in the save and inverted for every touch in
+`AHLPlayerController::GatherInput`. Corrections smaller than a fingertip's wobble are ignored. This exists
+because the user's phone reported touches offset from where they landed and would not be connected for
+measurement — do not remove it without a real device test.
+
 ## Checklist
 
 - [x] Core sim, ten levels, autopilot; harness + automation tests green

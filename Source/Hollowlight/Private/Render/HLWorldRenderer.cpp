@@ -96,6 +96,19 @@ FVector2D FHLWorldRenderer::LanternPos(const FSim& Sim, double PlayerX, double P
 	const FPlayer& P = Sim.P;
 	const double Speed = FMath::Clamp(FMath::Abs(P.VX) / kRunSpeed, 0.0, 1.0);
 	const double Bob = P.Grounded ? FMath::Sin(P.RunPhase * 2.0) * 1.2 * Speed : 0.0;
+	if (Sim.Phase != EPhase::Dying)
+	{
+		switch (P.Pose)
+		{
+		case EPose::Slide: return FVector2D(PlayerX - P.Facing * 2.0, PlayerY - 21.0);     // held up clear of the ground
+		case EPose::Crouch:
+		case EPose::Stunned: return FVector2D(PlayerX + P.Facing * 9.0, PlayerY - 8.0);
+		case EPose::Roll: return FVector2D(PlayerX, PlayerY - 11.0);
+		case EPose::Hang:
+		case EPose::Climb: return FVector2D(PlayerX - P.Facing * 7.0, PlayerY - 12.0);    // slung at the hip
+		default: break;
+		}
+	}
 	return FVector2D(PlayerX + P.Facing * 10.5, PlayerY - 13.0 + Bob);
 }
 
@@ -288,6 +301,13 @@ void FHLWorldRenderer::DrawGroundTop(FHLDraw& D, const FHLRenderView& V, double 
 	for (double X = Start; X < B; X += Step)
 	{
 		if (X < X0 || X + Step > X1 + 0.01) { continue; }
+		// The grass is trampled flat around a jaw trap, so its teeth stand clear against the mist.
+		bool bNearTrap = false;
+		for (const FTrap& T : V.Sim->Traps)
+		{
+			bNearTrap = bNearTrap || (FMath::Abs(T.Y - Top) < 2.0 && FMath::Abs(X + Step * 0.5 - T.X) < kTrapW * 0.5 + 9.0);
+		}
+		if (bNearTrap) { continue; }
 		const uint32 S = Hash32(Seed, (uint32)(int32)FMath::FloorToInt(X * 10.0) + 7000000u);
 		const double H = HashRange(S, 1, 2.5, 9.0) * (Hash01(S, 2) < 0.08 ? 1.9 : 1.0);
 		const double Lean = HashRange(S, 3, -2.5, 2.5) + FMath::Sin(V.Time * 1.3 + X * 0.05) * 0.6;
@@ -447,6 +467,7 @@ void FHLWorldRenderer::DrawTraps(FHLDraw& D, const FHLRenderView& V)
 		if (T.X < VisibleX0 || T.X > VisibleX1) { continue; }
 		const double X = T.X, Y = T.Y;
 		const double Half = kTrapW * 0.5;
+		const FLinearColor Steel = HLGrey(0.62f, T.Closed ? 0.35f : 0.8f);
 		// Snap animation: 0 open -> 1 shut in 70 ms.
 		const double K = T.Closed ? FMath::Clamp((S.Time - T.ClosedTime) / 0.07, 0.0, 1.0) : 0.0;
 		D.Rect(X - Half * 0.55, Y - 3, X + Half * 0.55, Y + 1, Black);  // base plate
@@ -467,8 +488,27 @@ void FHLWorldRenderer::DrawTraps(FHLDraw& D, const FHLRenderView& V)
 				const FVector2D P0 = Hinge + Along * (Len * (I - 0.9) / 4.0);
 				const FVector2D P1 = Hinge + Along * (Len * (I - 0.1) / 4.0);
 				const FVector2D Mid = (P0 + P1) * 0.5;
-				const FVector2D TipT = Mid + (K < 0.5 ? FVector2D(0, -6) : FVector2D(-Side * 6.0, 0));
+				const FVector2D TipT = Mid + (K < 0.5 ? FVector2D(0, -10.5) : FVector2D(-Side * 7.0, 0));
 				D.Tri(P0.X, P0.Y, P1.X, P1.Y, TipT.X, TipT.Y, Black);
+				// A dull steel edge on each tooth: the one thing in the grass that is not quite black.
+				D.Line(P1.X, P1.Y, TipT.X, TipT.Y, 0.9, Steel);
+			}
+			D.Line(Hinge.X, Hinge.Y - 1.2, Tip.X, Tip.Y - 1.2, 0.8, Steel);
+		}
+
+		// Now and then a tooth catches the light.
+		if (!T.Closed)
+		{
+			const double Period = 2.6;
+			const double Phase = FMath::Fmod(V.Time + T.X * 0.013, Period);
+			if (Phase < 0.35)
+			{
+				const float G = (float)FMath::Sin(Phase / 0.35 * PI) * 0.55f;
+				const int Tooth = (int)(Hash01((uint32)(int32)T.X, (uint32)FMath::FloorToInt((V.Time + T.X * 0.013) / Period)) * 4.0);
+				const double GX = X + (Tooth - 1.5) * Half * 0.45;
+				D.SetBlend(SE_BLEND_Additive);
+				D.Glow(GX, Y - 12.5, 5.0, FLinearColor(G, G, G * 0.95f, 1), FLinearColor(0, 0, 0, 1), 10);
+				D.SetBlend(SE_BLEND_Translucent);
 			}
 		}
 	}
@@ -617,60 +657,134 @@ void FHLWorldRenderer::DrawPlayer(FHLDraw& D, const FHLRenderView& V)
 	const FPlayer& P = S.P;
 	const double X = V.PlayerX, Y = V.PlayerY;
 	const double F = P.Facing;
-	const double Speed = FMath::Clamp(FMath::Abs(P.VX) / kRunSpeed, 0.0, 1.0);
-	const bool bAir = !P.Grounded && S.Phase != EPhase::Dying;
+	const double Speed = FMath::Clamp(FMath::Abs(P.VX) / kRunSpeed, 0.0, 1.25);
 	const bool bDead = S.Phase == EPhase::Dying;
+	const EPose Pose = bDead ? EPose::Stand : P.Pose;
+	const bool bAir = !P.Grounded && !bDead && P.Hang == 0;
 	const double Ph = P.RunPhase;
 	const double Wind = S.Level->Theme.Wind;
+	const FVector2D L = LanternPos(S, X, Y, V.Time);
 
-	// When caught by a trap or a log the child crumples a little.
+	auto DrawLantern = [&](const FVector2D& At)
+	{
+		// Bail, cap, glass frame, base. Its warm core is added in the light pass.
+		D.Tri(At.X - 3.6, At.Y - 4.4, At.X + 3.6, At.Y - 4.4, At.X, At.Y - 7.0, Black);
+		D.Rect(At.X - 3.2, At.Y - 4.6, At.X + 3.2, At.Y - 3.6, Black);
+		D.Rect(At.X - 3.2, At.Y - 3.6, At.X - 2.3, At.Y + 3.6, Black);
+		D.Rect(At.X + 2.3, At.Y - 3.6, At.X + 3.2, At.Y + 3.6, Black);
+		D.Rect(At.X - 3.8, At.Y + 3.4, At.X + 3.8, At.Y + 4.8, Black);
+	};
+
+	// Roll: a tucked ball turning over, scarf whipping round.
+	if (Pose == EPose::Roll)
+	{
+		const double A = (0.4 - P.RollTime) * 16.0 * F;
+		const FVector2D C(X, Y - 10.5);
+		D.Circle(C.X, C.Y, 10.0, Black, 18);
+		D.Circle(C.X + FMath::Cos(A) * 7.0, C.Y + FMath::Sin(A) * 7.0, 5.6, Black, 12);
+		D.Circle(C.X + FMath::Cos(A + 2.4) * 8.0, C.Y + FMath::Sin(A + 2.4) * 8.0, 3.6, Black, 10);
+		D.Curve(C + FVector2D(FMath::Cos(A + 3.6), FMath::Sin(A + 3.6)) * 9.0, C + FVector2D(FMath::Cos(A + 4.3), FMath::Sin(A + 4.3)) * 18.0,
+		        C + FVector2D(FMath::Cos(A + 5.0), FMath::Sin(A + 5.0)) * 21.0, 3.2, 0.8, Black, 6);
+		DrawLantern(L);
+		return;
+	}
+
+	// Skeleton for the pose: hip, shoulder, two legs (knee + foot), back hand.
 	const double Slump = bDead && (S.LastDeath == EDeath::Trap || S.LastDeath == EDeath::Log) ? FMath::Min(1.0, S.PhaseTime * 5.0) : 0.0;
-	const double Bob = P.Grounded ? FMath::Abs(FMath::Sin(Ph)) * 1.6 * Speed : 0.0;
-	const double HipY = Y - 17 + Bob * 0.5 + Slump * 6;
-	const double ShoulderY = Y - 33 + Bob + Slump * 8;
-	const double Lean = F * (Speed * 2.5 + (P.PushTimer > 0 ? 4.0 : 0.0));
-	const FVector2D Hip(X, HipY), Shoulder(X + Lean, ShoulderY);
+	FVector2D Hip, Shoulder, Knee[2], Foot[2], BackHand;
+	bool bLanternInHand = true;
+	double HeadLift = 8.8;
+
+	if (Pose == EPose::Slide)
+	{
+		// Leaning back, one leg out in front.
+		Hip = FVector2D(X + F * 3.0, Y - 6.5);
+		Shoulder = FVector2D(X - F * 7.5, Y - 15.0);
+		Knee[0] = FVector2D(X + F * 10.0, Y - 5.5);  Foot[0] = FVector2D(X + F * 18.0, Y - 2.0);
+		Knee[1] = FVector2D(X + F * 8.0, Y - 12.0);  Foot[1] = FVector2D(X + F * 12.5, Y - 2.5);
+		BackHand = FVector2D(X - F * 3.0, Y - 2.0);   // trailing hand on the ground
+		HeadLift = 7.5;
+	}
+	else if (Pose == EPose::Crouch || Pose == EPose::Stunned)
+	{
+		const double Bob = FMath::Sin(Ph * 1.6) * 0.8 * Speed;
+		Hip = FVector2D(X - F * 2.5, Y - 9.0 + Bob);
+		Shoulder = FVector2D(X + F * 3.0, Y - 19.0 + Bob);
+		Knee[0] = FVector2D(X + F * (5.0 + FMath::Sin(Ph * 1.6) * 2.0), Y - 9.5);  Foot[0] = FVector2D(X + F * 1.5, Y - 0.8);
+		Knee[1] = FVector2D(X + F * (1.5 - FMath::Sin(Ph * 1.6) * 2.0), Y - 7.0);  Foot[1] = FVector2D(X - F * 5.0, Y - 0.8);
+		BackHand = FVector2D(X - F * 4.0, Y - 8.0);
+		HeadLift = 7.8;
+	}
+	else if (Pose == EPose::Hang || Pose == EPose::Climb)
+	{
+		// Both hands on the edge; the legs swing a little, then a knee comes up as the child pulls over.
+		const double T = Pose == EPose::Climb ? FMath::Clamp(P.HangTime / kClimbTime, 0.0, 1.0) : 0.0;
+		const double Sway = FMath::Sin(V.Time * 6.0) * 1.5 * (1.0 - T);
+		Hip = FVector2D(X - F * 1.0 * T, Y - 17.0 + T * 4.0);
+		Shoulder = FVector2D(X + F * (1.0 + 3.0 * T), Y - 33.0 + T * 8.0);
+		Knee[0] = FVector2D(X + F * (2.0 + 5.0 * T) + Sway, Y - 9.0 - T * 4.0);  Foot[0] = FVector2D(X + F * 1.0 + Sway, Y - 0.5 - T * 2.0);
+		Knee[1] = FVector2D(X - F * 1.5 + Sway, Y - 8.5);                        Foot[1] = FVector2D(X - F * 2.5 + Sway * 1.5, Y);
+		BackHand = FVector2D(X + F * 8.0, FMath::Min(P.HangLedgeY + (Y - P.Y) - 1.0, Shoulder.Y - 4.0));   // on the ledge
+		bLanternInHand = false;   // slung at the hip while both hands are busy
+	}
+	else
+	{
+		const double Bob = P.Grounded ? FMath::Abs(FMath::Sin(Ph)) * 1.6 * FMath::Min(Speed, 1.0) : 0.0;
+		const double Lean = F * (Speed * 2.5 + FMath::Max(0.0, Speed - 1.0) * 6.0 + (P.PushTimer > 0 ? 4.0 : 0.0));
+		Hip = FVector2D(X, Y - 17.0 + Bob * 0.5 + Slump * 6.0);
+		Shoulder = FVector2D(X + Lean, Y - 33.0 + Bob + Slump * 8.0);
+		for (int Leg = 0; Leg < 2; ++Leg)
+		{
+			double A;
+			if (bAir) { A = (Leg == 0 ? 0.55 : -0.35) * F + (P.VY < 0 ? 0.1 : -0.1) * F; }
+			else { A = FMath::Sin(Ph + Leg * PI) * 0.75 * FMath::Min(Speed, 1.15) * F; }
+			const double Bend = bAir ? (Pose == EPose::Vault ? 1.1 : 0.6) : FMath::Max(0.0, FMath::Sin(Ph + Leg * PI + 1.2)) * 0.8 * FMath::Min(Speed, 1.0);
+			Knee[Leg] = Hip + FVector2D(FMath::Sin(A) * 9.0, FMath::Cos(A) * 9.0);
+			const double A2 = A - Bend * F;
+			Foot[Leg] = Knee[Leg] + FVector2D(FMath::Sin(A2) * 9.0, FMath::Cos(A2) * 9.0 - Slump * 2.0);
+		}
+		const double ArmA = bAir ? -1.9 * F : -FMath::Sin(Ph) * 0.8 * FMath::Min(Speed, 1.0) * F - 0.15 * F;
+		BackHand = Shoulder + FVector2D(-F * 2.0, 1.0) + FVector2D(FMath::Sin(ArmA) * 12.0, FMath::Cos(ArmA) * 12.0);
+	}
 
 	// Legs
 	for (int Leg = 0; Leg < 2; ++Leg)
 	{
-		double A;
-		if (bAir) { A = (Leg == 0 ? 0.55 : -0.35) * F + (P.VY < 0 ? 0.1 : -0.1) * F; }
-		else { A = FMath::Sin(Ph + Leg * PI) * 0.75 * Speed * F; }
-		const double Knee = bAir ? 0.6 : FMath::Max(0.0, FMath::Sin(Ph + Leg * PI + 1.2)) * 0.8 * Speed;
-		const FVector2D K = Hip + FVector2D(FMath::Sin(A) * 9.0, FMath::Cos(A) * 9.0);
-		const double A2 = A - Knee * F;
-		const FVector2D Foot = K + FVector2D(FMath::Sin(A2) * 9.0, FMath::Cos(A2) * 9.0 - Slump * 2);
-		D.Line(Hip.X, Hip.Y, K.X, K.Y, 3.4, Black);
-		D.Line(K.X, K.Y, Foot.X, Foot.Y, 3.0, Black);
-		D.Circle(K.X, K.Y, 1.7, Black, 6);
-		D.Ellipse(Foot.X + F * 1.5, Foot.Y - 0.8, 3.0, 1.6, Black, 8);
+		D.Line(Hip.X, Hip.Y, Knee[Leg].X, Knee[Leg].Y, 3.4, Black);
+		D.Line(Knee[Leg].X, Knee[Leg].Y, Foot[Leg].X, Foot[Leg].Y, 3.0, Black);
+		D.Circle(Knee[Leg].X, Knee[Leg].Y, 1.7, Black, 6);
+		D.Ellipse(Foot[Leg].X + F * 1.5, Foot[Leg].Y - 0.8, 3.0, 1.6, Black, 8);
 	}
 
-	// Back arm (swings opposite the front arm)
+	// Back arm
 	{
-		const double A = bAir ? -1.9 * F : -FMath::Sin(Ph) * 0.8 * Speed * F - 0.15 * F;
 		const FVector2D From = Shoulder + FVector2D(-F * 2.0, 1.0);
-		const FVector2D To = From + FVector2D(FMath::Sin(A) * 12.0, FMath::Cos(A) * 12.0);
-		D.Line(From.X, From.Y, To.X, To.Y, 2.6, Black);
+		D.Line(From.X, From.Y, BackHand.X, BackHand.Y, 2.6, Black);
 	}
 
-	// Tunic: trapezoid from the shoulders to the hem
-	D.Quad(FVector2D(Shoulder.X - 5, ShoulderY - 1), FVector2D(Shoulder.X + 5, ShoulderY - 1), FVector2D(X + 8.5, HipY + 2), FVector2D(X - 8.5, HipY + 2), Black);
-	D.Circle(Shoulder.X, ShoulderY + 1, 5, Black, 10);
+	// Tunic: from the shoulders to the hem at the hips
+	{
+		const FVector2D Axis = (Hip - Shoulder).GetSafeNormal();
+		const FVector2D Side(-Axis.Y, Axis.X);
+		const FVector2D Hem = Hip + Axis * 2.5;
+		D.Quad(Shoulder - Side * 5.0 - Axis * 1.0, Shoulder + Side * 5.0 - Axis * 1.0, Hem + Side * 8.5, Hem - Side * 8.5, Black);
+		D.Circle(Shoulder.X + Axis.X, Shoulder.Y + Axis.Y, 5.0, Black, 10);
+	}
 
-	// Scarf: wraps the neck and trails behind, waving more when running or jumping.
+	// Scarf: wraps the neck and trails behind, waving more when running, jumping or sliding.
 	{
 		const FVector2D Neck = Shoulder + FVector2D(0, -2.5);
 		D.Ellipse(Neck.X, Neck.Y, 5.5, 2.8, Black, 12);
-		const double Amp = 0.6 + 1.8 * Speed + (bAir ? 1.6 : 0.0) + Wind * 1.2;
-		const double Stretch = 3.0 + 1.2 * Speed + (bAir ? 0.8 : 0.0) + Wind * 0.8;
+		const bool bFast = bAir || Pose == EPose::Slide;
+		const double Amp = 0.6 + 1.8 * Speed + (bFast ? 1.6 : 0.0) + Wind * 1.2;
+		const double Stretch = 3.0 + 1.2 * Speed + (bFast ? 0.8 : 0.0) + Wind * 0.8;
 		FVector2D Prev = Neck + FVector2D(-F * 2.0, 0.5);
 		const int N = 8;
 		for (int I = 1; I <= N; ++I)
 		{
 			const double T = double(I) / N;
-			const double Droop = (1.0 - Speed * 0.7 - (bAir ? 0.3 : 0.0)) * I * 1.3 + (bAir && P.VY < 0 ? I * 0.8 : 0.0);
+			const double Droop = (1.0 - FMath::Min(Speed, 1.0) * 0.7 - (bFast ? 0.3 : 0.0)) * I * 1.3 + (bAir && P.VY < 0 ? I * 0.8 : 0.0)
+			                   + (Pose == EPose::Hang || Pose == EPose::Climb ? I * 1.6 : 0.0);
 			const FVector2D Next = Neck + FVector2D(-F * (2.0 + I * Stretch), 0.5 + Droop + FMath::Sin(V.Time * 9.0 - I * 0.9) * Amp * T * 1.6);
 			D.TaperLine(Prev.X, Prev.Y, Next.X, Next.Y, 3.6 * (1.0 - T * 0.55), 3.6 * (1.0 - (T + 1.0 / N) * 0.55), Black);
 			Prev = Next;
@@ -680,7 +794,8 @@ void FHLWorldRenderer::DrawPlayer(FHLDraw& D, const FHLRenderView& V)
 
 	// Head with a spiky tuft of hair
 	{
-		const FVector2D Head = Shoulder + FVector2D(F * 1.2, -8.8 + Slump * 2);
+		const FVector2D Up = (Shoulder - Hip).GetSafeNormal();
+		const FVector2D Head = Shoulder + Up * HeadLift + FVector2D(F * 1.2, Slump * 2.0);
 		D.Circle(Head.X, Head.Y, 6.4, Black, 16);
 		D.Tri(Head.X - F * 1.0, Head.Y - 5.5, Head.X + F * 3.0, Head.Y - 5.8, Head.X + F * 0.5, Head.Y - 11.5, Black);
 		D.Tri(Head.X - F * 3.5, Head.Y - 4.5, Head.X, Head.Y - 6.0, Head.X - F * 4.5, Head.Y - 10.5, Black);
@@ -688,21 +803,26 @@ void FHLWorldRenderer::DrawPlayer(FHLDraw& D, const FHLRenderView& V)
 		D.Tri(Head.X + F * 2.0, Head.Y - 5.5, Head.X + F * 5.0, Head.Y - 4.0, Head.X + F * 6.0, Head.Y - 8.5, Black);
 	}
 
-	// Front arm holding the lantern
+	// Front arm and the lantern
 	{
-		const FVector2D L = LanternPos(S, X, Y, V.Time) + FVector2D(0, Slump * 6);
+		const FVector2D LL = L + FVector2D(0, Slump * 6.0);
 		const FVector2D From = Shoulder + FVector2D(F * 2.0, 1.0);
-		const FVector2D Hand = L + FVector2D(0, -7.5);
-		const FVector2D Elbow = (From + Hand) * 0.5 + FVector2D(-F * 1.5, 2.0);
-		D.Line(From.X, From.Y, Elbow.X, Elbow.Y, 2.6, Black);
-		D.Line(Elbow.X, Elbow.Y, Hand.X, Hand.Y, 2.4, Black);
-		// Lantern: bail, cap, glass frame, base. Its warm core is added in the light pass.
-		D.Line(Hand.X, Hand.Y, L.X, L.Y - 5, 1.0, Black);
-		D.Tri(L.X - 3.6, L.Y - 4.4, L.X + 3.6, L.Y - 4.4, L.X, L.Y - 7.0, Black);
-		D.Rect(L.X - 3.2, L.Y - 4.6, L.X + 3.2, L.Y - 3.6, Black);
-		D.Rect(L.X - 3.2, L.Y - 3.6, L.X - 2.3, L.Y + 3.6, Black);
-		D.Rect(L.X + 2.3, L.Y - 3.6, L.X + 3.2, L.Y + 3.6, Black);
-		D.Rect(L.X - 3.8, L.Y + 3.4, L.X + 3.8, L.Y + 4.8, Black);
+		if (bLanternInHand)
+		{
+			const FVector2D Hand = LL + FVector2D(0, -7.5);
+			const FVector2D Elbow = (From + Hand) * 0.5 + FVector2D(-F * 1.5, 2.0);
+			D.Line(From.X, From.Y, Elbow.X, Elbow.Y, 2.6, Black);
+			D.Line(Elbow.X, Elbow.Y, Hand.X, Hand.Y, 2.4, Black);
+			D.Line(Hand.X, Hand.Y, LL.X, LL.Y - 5.0, 1.0, Black);
+		}
+		else
+		{
+			// reaching up to the ledge with the front hand too
+			const FVector2D Hand(BackHand.X - F * 3.0, BackHand.Y);
+			D.Line(From.X, From.Y, Hand.X, Hand.Y, 2.6, Black);
+			D.Line(Hip.X, Hip.Y, LL.X, LL.Y - 5.0, 1.0, Black);   // lantern cord at the hip
+		}
+		DrawLantern(LL);
 	}
 }
 

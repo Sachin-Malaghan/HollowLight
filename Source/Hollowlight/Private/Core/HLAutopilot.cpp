@@ -20,10 +20,47 @@ namespace HL
 		if (Sim.Phase != EPhase::Playing) { return In; }
 		const FPlayer& P = Sim.P;
 		In.Dir = 1;
+		if (P.Hang != 0) { return In; }   // the pull-up finishes by itself
 		if (!P.Grounded)
 		{
 			In.Jump = P.VY < 0;  // hold for the full arc
 			return In;
+		}
+
+		// Water ahead too wide to jump, nothing floating in it, and a dry crate left behind:
+		// go back around the crate so it can be pushed in.
+		for (const FWaterDef& W : Sim.Level->Water)
+		{
+			const double BankY = W.Surface - 39.0;   // ground level a floating crate ends up flush with
+			if (W.X0 < P.X - 2.0 || W.X0 > P.X + 700.0 || W.X1 - W.X0 < 185.0) { continue; }
+			if (P.Y > BankY + 4.0 || P.Y < BankY - kCrateSize - 4.0) { continue; }   // not on this bank (or on its crate)
+			bool bBridged = false;
+			for (const FCrate& C : Sim.Crates) { bBridged = bBridged || (C.InWater && C.X + kCrateSize > W.X0 && C.X < W.X1); }
+			if (bBridged) { break; }
+			for (const FCrate& C : Sim.Crates)
+			{
+				const bool bDry = C.Grounded && !C.InWater && C.X + kCrateSize <= W.X0 + 1.0 && std::fabs(C.Y + kCrateSize - BankY) < 2.0;
+				const bool bBehind = C.X < P.X + kPlayerW * 0.5 && C.X > P.X - 700.0;   // the child is on it or past it
+				if (bDry && bBehind)
+				{
+					In.Dir = -1;
+					In.Jump = (P.X - kPlayerW * 0.5) - (C.X + kCrateSize) < 30.0 && P.Y > C.Y + 2.0;   // hop back over it
+					return In;
+				}
+			}
+			break;
+		}
+
+		// Something at head height with room underneath: slide (or keep crawling) under it.
+		{
+			const double Ahead0 = P.X + kPlayerW * 0.5 + 1.0, Ahead1 = P.X + kPlayerW * 0.5 + 64.0;
+			const bool bHeadBlocked = !Sim.IsFree({ Ahead0, P.Y - kPlayerH + 1.0, Ahead1, P.Y - kLowH - 1.0 });
+			const bool bLowClear = Sim.IsFree({ Ahead0, P.Y - kLowH + 0.5, Ahead1, P.Y - 1.0 });
+			if ((bHeadBlocked && bLowClear) || (P.Low && !Sim.CanStand()))
+			{
+				In.Down = true;
+				return In;
+			}
 		}
 
 		bool bTrigger = false;
@@ -67,6 +104,7 @@ namespace HL
 	{
 		FInput In;
 		In.Dir = Macro.Dir;
+		In.Down = Macro.bDown;
 		if (Macro.bJump) { In.Jump = true; }
 		else if (Macro.bSuppressJump) { In.Jump = !Sim.P.Grounded && Sim.P.VY < 0; }
 		else { In.Jump = false; }
@@ -128,12 +166,14 @@ namespace HL
 				{ 0, true, false, 0.45 },   // 6 jump in place
 				{ 1, false, true, 0.3 },    // 7 walk on without jumping
 				{ -1, false, true, 0.8 },   // 8 back off further
+				{ 1, false, true, 0.6, true },   // 9 slide
 			};
 			constexpr int NumCandidates = sizeof(Candidates) / sizeof(Candidates[0]);
 
 			int Best = 0;
 			const FOutcome Base = Evaluate(Sim, Candidates[0]);
-			const bool bBaseGood = Base.bWon || (!Base.bDied && Base.Progress > 6.0 && StallTimer < 3.0);
+			const bool bRetreat = BasePolicy(Sim).Dir < 0;   // deliberately going back for something
+			const bool bBaseGood = Base.bWon || (!Base.bDied && (bRetreat || (Base.Progress > 6.0 && StallTimer < 3.0)));
 			if (!bBaseGood)
 			{
 				auto Score = [](const FOutcome& O, int Index)

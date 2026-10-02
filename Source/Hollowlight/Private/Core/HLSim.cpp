@@ -373,9 +373,94 @@ namespace HL
 		return Allowed;
 	}
 
-	void FSim::UpdatePlayer(const FInput& In)
+	bool FSim::IsFree(const FRect& R, int IgnoreCrate) const
+	{
+		bool bFree = true;
+		ForEachSolid(*this, false, true, IgnoreCrate, [&](const FSolid& S)
+		{
+			if (bFree && R.Overlaps(S.R)) { bFree = false; }
+		});
+		return bFree;
+	}
+
+	bool FSim::CanStand() const
+	{
+		// Only the space the body would grow into matters.
+		return IsFree({ P.X - kPlayerW * 0.5 + 0.5, P.Y - kPlayerH, P.X + kPlayerW * 0.5 - 0.5, P.Y - kLowH - kEps });
+	}
+
+	void FSim::UpdateHang(const FInput& In)
 	{
 		FPlayer& Pl = P;
+		Pl.JumpHeld = In.Jump;
+		Pl.HangTime += kStep;
+		Pl.VX = Pl.VY = 0;
+
+		// Let go if asked, or if the thing being held has moved (a crate that slid or sank).
+		bool bDrop = Pl.Hang == 1 && In.Down;
+		if (Pl.HangKind == ESupport::Crate && Pl.HangIndex >= 0)
+		{
+			const FCrate& C = Crates[Pl.HangIndex];
+			if (std::fabs(C.Y - Pl.HangLedgeY) > 1.5 || std::fabs(C.X - C.PrevX) > 1e-6) { bDrop = true; }
+		}
+		if (bDrop)
+		{
+			Pl.Hang = 0;
+			Pl.GrabCooldown = 0.35;
+			Pl.Pose = EPose::Stand;
+			return;
+		}
+
+		if (Pl.Hang == 1)
+		{
+			Pl.Pose = EPose::Hang;
+			if (Pl.HangTime >= kHangTime)
+			{
+				Pl.Hang = 2;
+				Pl.HangTime = 0;
+				Emit(EEvent::Climb, Pl.X, Pl.Y);
+			}
+			return;
+		}
+
+		// Pull up: rise first, then swing over the edge.
+		Pl.Pose = EPose::Climb;
+		const double T = Pl.HangTime / kClimbTime;
+		Pl.Y = Lerp(Pl.HangLedgeY + kPlayerH + 2.0, Pl.HangLedgeY, SmoothStep(0.0, 0.65, T));
+		Pl.X = Lerp(Pl.HangFromX, Pl.HangToX, SmoothStep(0.45, 1.0, T));
+		if (T >= 1.0)
+		{
+			Pl.Hang = 0;
+			Pl.X = Pl.HangToX;
+			Pl.Y = Pl.HangLedgeY;
+			Pl.Grounded = true;
+			Pl.SupportKind = Pl.HangKind;
+			Pl.SupportIndex = Pl.HangIndex;
+			Pl.VX = Pl.HangDir * kRunSpeed * 0.5;
+			Pl.AirTime = 0;
+			Pl.Pose = EPose::Stand;
+		}
+	}
+
+	void FSim::UpdatePlayer(const FInput& InRaw)
+	{
+		FPlayer& Pl = P;
+		if (Pl.Hang != 0)
+		{
+			UpdateHang(InRaw);
+			return;
+		}
+
+		// After a hard landing without a roll there is a beat before control returns.
+		FInput In = InRaw;
+		if (Pl.StunTime > 0)
+		{
+			Pl.StunTime -= kStep;
+			In = FInput();
+		}
+		Pl.GrabCooldown -= kStep;
+		Pl.VaultTimer -= kStep;
+		Pl.RollTime -= kStep;
 
 		if (In.Jump && !Pl.JumpHeld) { Pl.JumpBuffer = kJumpBufferTime; }
 		if (!In.Jump && Pl.JumpHeld && Pl.VY < 0 && !Pl.JumpCut)
@@ -402,17 +487,65 @@ namespace HL
 			}
 		}
 
-		double Target = In.Dir * kRunSpeed;
-		if (Pl.PushTimer > 0) { Target = Clamp(Target, -kPushSpeed, kPushSpeed); }
-		const double Accel = Pl.Grounded ? (In.Dir != 0 ? 2600.0 : 3000.0) : 1600.0;
-		Pl.VX = Approach(Pl.VX, Target, Accel * kStep);
-		if (In.Dir != 0) { Pl.Facing = In.Dir; }
+		// Stance: "down" at a run is a slide, otherwise a crouch. Stay low under anything too low to stand in.
+		if (Pl.Grounded && In.Down && !Pl.Low)
+		{
+			Pl.Low = true;
+			Pl.H = kLowH;
+			if (std::fabs(Pl.VX) >= kSlideMinSpeed)
+			{
+				Pl.Sliding = true;
+				Pl.SlideTime = 0;
+				Emit(EEvent::Slide, Pl.X, Pl.Y);
+			}
+		}
+		if (Pl.Low)
+		{
+			if (Pl.Sliding)
+			{
+				Pl.SlideTime += kStep;
+				if (Pl.SlideTime >= kSlideTime || std::fabs(Pl.VX) < 50.0) { Pl.Sliding = false; }
+			}
+			const bool bHold = In.Down || (Pl.Sliding && Pl.SlideTime < 0.25);
+			if (!bHold && CanStand())
+			{
+				Pl.Low = false;
+				Pl.Sliding = false;
+				Pl.H = kPlayerH;
+			}
+		}
+
+		// Momentum: keep running and the pace builds from a run to a sprint.
+		const bool bRunning = In.Dir != 0 && In.Dir * Pl.VX > 0.75 * kRunSpeed && !Pl.Low && Pl.PushTimer <= 0;
+		if (!bRunning) { Pl.SprintTime = 0; }
+		else if (Pl.Grounded) { Pl.SprintTime += kStep; }
+		const double TopSpeed = kRunSpeed + (kSprintSpeed - kRunSpeed) * Clamp((Pl.SprintTime - kSprintDelay) / kSprintRamp, 0.0, 1.0);
+
+		if (Pl.Sliding)
+		{
+			Pl.VX = Approach(Pl.VX, 0.0, kSlideFriction * kStep);   // no steering in a slide
+		}
+		else
+		{
+			double Target = In.Dir * (Pl.Low ? kCrawlSpeed : TopSpeed);
+			if (Pl.PushTimer > 0) { Target = Clamp(Target, -kPushSpeed, kPushSpeed); }
+			const double Accel = Pl.Grounded ? (In.Dir != 0 ? 2600.0 : 3000.0) : 1600.0;
+			Pl.VX = Approach(Pl.VX, Target, Accel * kStep);
+			if (In.Dir != 0) { Pl.Facing = In.Dir; }
+		}
 		Pl.PushTimer -= kStep;
 
 		Pl.Coyote = Pl.Grounded ? kCoyoteTime : Pl.Coyote - kStep;
 		Pl.JumpBuffer -= kStep;
+		if (Pl.JumpBuffer > 0 && Pl.Coyote > 0 && Pl.Low && !CanStand())
+		{
+			Pl.JumpBuffer = 0;   // no room to jump under a low beam
+		}
 		if (Pl.JumpBuffer > 0 && Pl.Coyote > 0)
 		{
+			Pl.Low = false;
+			Pl.Sliding = false;
+			Pl.H = kPlayerH;
 			Pl.VY = -kJumpSpeed;
 			Pl.Grounded = false;
 			Pl.Coyote = 0;
@@ -430,6 +563,7 @@ namespace HL
 
 		const double StartX = Pl.X;
 		MovePlayerX(Pl.VX * kStep, true);
+		if (Pl.Hang != 0) { return; }   // caught a ledge during the move
 
 		const bool bWasGrounded = Pl.Grounded;
 		const double FallSpeed = Pl.VY;
@@ -438,8 +572,30 @@ namespace HL
 		if (Pl.Grounded && !bWasGrounded && Pl.AirTime > 0.08)
 		{
 			Emit(EEvent::Land, Pl.X, Pl.Y, Clamp(FallSpeed / 900.0, 0.0, 1.0));
+			if (FallSpeed > kHardLandSpeed)
+			{
+				// A long drop: roll out of it if moving (or holding down), otherwise land heavily.
+				if (InRaw.Down || std::fabs(Pl.VX) > 120.0)
+				{
+					Pl.RollTime = 0.4;
+					Emit(EEvent::Roll, Pl.X, Pl.Y);
+				}
+				else
+				{
+					Pl.StunTime = 0.22;
+					Pl.VX = 0;
+					Emit(EEvent::HardLand, Pl.X, Pl.Y);
+				}
+			}
 		}
 		Pl.AirTime = Pl.Grounded ? 0.0 : Pl.AirTime + kStep;
+
+		Pl.Pose = Pl.StunTime > 0 ? EPose::Stunned
+		        : Pl.RollTime > 0 ? EPose::Roll
+		        : Pl.Sliding ? EPose::Slide
+		        : Pl.Low ? EPose::Crouch
+		        : (Pl.VaultTimer > 0 && !Pl.Grounded) ? EPose::Vault
+		        : EPose::Stand;
 
 		const double Moved = std::fabs(Pl.X - StartX);
 		Pl.StuckTime = (In.Dir != 0 && Moved < 0.25 * kRunSpeed * kStep) ? Pl.StuckTime + kStep : 0.0;
@@ -462,6 +618,10 @@ namespace HL
 		FRect B = Pl.Box();
 		double Allowed = DX;
 		bool bBlocked = false;
+		const int Dir = DX > 0 ? 1 : -1;
+		double VaultHeight = -1;          // > 0: hop over this obstacle without breaking stride
+		bool bGrab = false;               // catch the top edge of this wall
+		FSolid GrabSolid{};
 
 		// Walls first so a crate is never pushed through a wall the child is also touching.
 		ForEachSolid(*this, false, true, -1, [&](const FSolid& S)
@@ -477,6 +637,29 @@ namespace HL
 				Pl.Y = S.R.Y0;
 				B = Pl.Box();
 				return;
+			}
+
+			// Vault: at a run, anything up to knee height is hopped without slowing down.
+			if (bAllowPush && Pl.Grounded && !Pl.Low && S.Kind != ESupport::Crate && std::fabs(Pl.VX) > 150.0 &&
+				S.R.Y0 >= B.Y1 - kVaultMax &&
+				IsFree({ std::min(B.X0, B.X0 + Dir * kPlayerW), S.R.Y0 - kPlayerH, std::max(B.X1, B.X1 + Dir * kPlayerW), S.R.Y0 - kEps }))
+			{
+				VaultHeight = std::max(VaultHeight, B.Y1 - S.R.Y0);
+			}
+
+			// Ledge grab: in the air, hands near the top edge of a wall with room to stand on it.
+			if (bAllowPush && !Pl.Grounded && !Pl.Low && Pl.GrabCooldown <= 0 && Pl.VY > -300.0 && !bGrab &&
+				B.Y0 >= S.R.Y0 - 6.0 && B.Y0 <= S.R.Y0 + kGrabReach &&
+				(S.Kind != ESupport::Crate || Crates[S.Index].Grounded))
+			{
+				const double EdgeX = Dir > 0 ? S.R.X0 : S.R.X1;
+				const FRect Above = { std::min(EdgeX, EdgeX + Dir * (kPlayerW + 1.0)) + 0.25, S.R.Y0 - kPlayerH,
+				                      std::max(EdgeX, EdgeX + Dir * (kPlayerW + 1.0)) - 0.25, S.R.Y0 - kEps };
+				if (IsFree(Above))
+				{
+					bGrab = true;
+					GrabSolid = S;
+				}
 			}
 
 			if (S.Kind == ESupport::Crate && bAllowPush && Pl.Grounded)
@@ -504,6 +687,42 @@ namespace HL
 
 		if (DX > 0) { Allowed = std::max(Allowed, 0.0); } else { Allowed = std::min(Allowed, 0.0); }
 		Pl.X += Allowed;
+
+		if (bGrab && bBlocked)
+		{
+			const double EdgeX = Dir > 0 ? GrabSolid.R.X0 : GrabSolid.R.X1;
+			Pl.Hang = 1;
+			Pl.HangDir = Dir;
+			Pl.HangTime = 0;
+			Pl.HangLedgeY = GrabSolid.R.Y0;
+			Pl.HangFromX = EdgeX - Dir * kPlayerW * 0.5;
+			Pl.HangToX = EdgeX + Dir * (kPlayerW * 0.5 + 1.0);
+			Pl.HangKind = GrabSolid.Kind;
+			Pl.HangIndex = GrabSolid.Index;
+			Pl.X = Pl.HangFromX;
+			Pl.Y = Pl.HangLedgeY + kPlayerH + 2.0;
+			Pl.VX = Pl.VY = 0;
+			Pl.Facing = Dir;
+			Pl.Pose = EPose::Hang;
+			Emit(EEvent::Grab, Pl.X, Pl.HangLedgeY);
+			return;
+		}
+
+		if (VaultHeight > 0 && bBlocked)
+		{
+			Pl.VY = -std::sqrt(2.0 * kGravity * (VaultHeight + 10.0));
+			Pl.Grounded = false;
+			Pl.Coyote = 0;
+			Pl.JumpCut = true;
+			Pl.VaultTimer = 0.3;
+			bBlocked = false;       // keep the momentum
+			Emit(EEvent::Vault, Pl.X, Pl.Y);
+		}
+		else if (Pl.VaultTimer > 0 && bBlocked)
+		{
+			bBlocked = false;       // still clearing the obstacle
+		}
+
 		if (bBlocked) { Pl.VX = 0; }
 		Pl.X = Clamp(Pl.X, Level->MinX + kPlayerW, Level->MaxX - kPlayerW);
 	}

@@ -33,4 +33,11 @@ public:
 	UPROPERTY() EHLTouchMode TouchMode = EHLTouchMode::Auto;
 	UPROPERTY() bool bFilmGrain = true;
 	UPROPERTY() bool bReduceFlashing = false;
+
+	// Touch calibration ("touch the light"): reported = Scale * true + Offset, in screen fractions.
+	UPROPERTY() bool bTouchCalibrated = false;
+	UPROPERTY() float TouchScaleX = 1.f;
+	UPROPERTY() float TouchOffsetX = 0.f;
+	UPROPERTY() float TouchScaleY = 1.f;
+	UPROPERTY() float TouchOffsetY = 0.f;
 };

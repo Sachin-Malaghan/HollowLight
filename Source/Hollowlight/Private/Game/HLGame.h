@@ -10,14 +10,14 @@ class UHLSaveGame;
 
 enum class EHLScreen : uint8
 {
-	Title, LevelSelect, Settings, Credits, Playing, Paused, LevelComplete, Ending
+	Title, LevelSelect, Settings, Credits, Playing, Paused, LevelComplete, Ending, Calibrate
 };
 
 enum class EHLAction : uint8
 {
 	None, Play, Levels, Settings, Credits, Back, SelectLevel, Resume, RestartCheckpoint, RestartLevel,
 	QuitToTitle, NextLevel, Replay, ToggleMusic, ToggleSound, CycleTouch, ToggleGrain, ToggleFlashing,
-	Pause, PlayAgain, Quit, PrivacyPolicy
+	Pause, PlayAgain, Quit, PrivacyPolicy, Calibrate, SkipCalibrate
 };
 
 enum class EHLUiSound : uint8 { Move, Select, Back };
@@ -26,6 +26,7 @@ struct FHLControls
 {
 	int Dir = 0;
 	bool Jump = false;
+	bool Down = false;   // slide / crouch
 };
 
 struct FHLMenuInput
@@ -36,6 +37,7 @@ struct FHLMenuInput
 	bool bPointerMoved = false;
 	bool bClick = false;           // mouse click or tap released this frame
 	FVector2D Pointer = FVector2D::ZeroVector;
+	FVector2D RawPointer = FVector2D::ZeroVector;   // before touch calibration is applied
 };
 
 struct FHLButton
@@ -59,7 +61,7 @@ public:
 class FHLGame
 {
 public:
-	void Init(UHLSaveGame* InSave, IHLAudioSink* InAudio);
+	void Init(UHLSaveGame* InSave, IHLAudioSink* InAudio, bool bTouchDevice);
 	void Tick(float DeltaSeconds, const FHLControls& Controls, const FHLMenuInput& Menu, double ScreenW, double ScreenH);
 
 	// Flow
@@ -94,6 +96,9 @@ public:
 	double Lightning = 0;
 	double Shake = 0;
 	double MenuFade = 1;         // 1 = menu fully shown
+	int32 CalibrateStep = 0;                        // which target is showing
+	FVector2D CalibrateRaw[2];                      // where the taps were reported (screen fractions)
+	static FVector2D CalibrateTarget(int32 Step) { return Step == 0 ? FVector2D(0.25, 0.35) : FVector2D(0.75, 0.65); }
 	bool bNewBest = false;
 	float ResultTime = 0;
 	int32 ResultDeaths = 0;
@@ -108,6 +113,7 @@ public:
 	bool bAutopilotInPlay = false;
 	bool bNoSave = false;
 	bool bHideUI = false;
+	int32 DebugPose = -1;      // >= 0: draw the child in this EPose (hl.Debug.Pose, capture script)
 
 	// Set by the QUIT button (desktop) or Back on the title screen (Android); the controller closes the app.
 	bool bQuitRequested = false;
@@ -117,6 +123,8 @@ private:
 	void StepWorld(double Dt, const FHLControls& Controls);
 	void UpdateCamera(double Dt, bool bSnap);
 	void HandleMenu(const FHLMenuInput& Menu);
+	void HandleCalibration(const FHLMenuInput& Menu);
+	double PixelW = 1, PixelH = 1;   // viewport size in pixels
 	void Back();
 	void CompleteLevel();
 
