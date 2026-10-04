@@ -223,6 +223,12 @@ Things to operate (`HLLevel.h`, `FSim::DoAct` / `UpdateMechanisms` / `UpdateDog`
   `FDog::RunPhase` is one stride (40 units at a trot, 90 at a gallop) so the legs stride instead of whirring;
   the spine rocks at a gallop; it sits only after 1.3 s of standing.
 
+**Resume (asked for 2026-10-04):** leaving the app and coming back carries on from the last cairn of the level
+that was being played - CONTINUE on the title (which says "cairn 3 of 6"), or that level's card on the level
+select. The clock and the falls are saved with the cairn (`LastTime`, `LastDeaths`) and again when the app goes
+to the background, so a resumed run keeps an honest time. It resumes at the cairn, not the exact spot: puzzle
+state between cairns is not saved, which is why checkpoints must be clean cuts.
+
 ## Checklist
 
 - [x] Core sim, eleven levels, autopilot; harness + automation tests green

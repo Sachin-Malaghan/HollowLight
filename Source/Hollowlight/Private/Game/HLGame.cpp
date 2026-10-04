@@ -201,7 +201,15 @@ void FHLGame::SaveProgress()
 void FHLGame::StartLevel(int32 Index, int32 Checkpoint)
 {
 	LevelIndex = FMath::Clamp(Index, 0, NumLevels() - 1);
+	// Coming back to the run that was left (after closing the app, or from the title): same level, same
+	// checkpoint, and the clock and falls as they stood when that cairn was lit.
+	const bool bResume = Checkpoint >= 0 && LevelIndex == Save->LastLevel && Checkpoint == Save->LastCheckpoint;
 	Sim.Load(GetLevels()[LevelIndex], Checkpoint);
+	if (bResume)
+	{
+		Sim.PlayTime = Save->LastTime;
+		Sim.Deaths = Save->LastDeaths;
+	}
 	Sim.P.JumpHeld = true;  // the key that confirmed the menu must be released before it jumps
 	// Embers found on an earlier visit stay found.
 	for (int32 K = 0; K < (int32)Sim.EmberTaken.size() && Save->EmberMask.IsValidIndex(LevelIndex); ++K)
@@ -220,6 +228,8 @@ void FHLGame::StartLevel(int32 Index, int32 Checkpoint)
 	UpdateCamera(0, true);
 	Save->LastLevel = LevelIndex;
 	Save->LastCheckpoint = Sim.CheckpointIndex;
+	Save->LastTime = (float)Sim.PlayTime;
+	Save->LastDeaths = Sim.Deaths;
 	NoteText.Reset();
 	NoteAlpha = 0;
 	SaveProgress();
@@ -249,6 +259,15 @@ void FHLGame::GoTo(EHLScreen NewScreen)
 
 void FHLGame::OnAppBackground()
 {
+	// Leaving the app mid-level: keep the clock as it stands, so coming back does not lose time played
+	// since the last cairn (the place itself is always the last cairn).
+	if (!bAttract && !bAutopilotInPlay && (Screen == EHLScreen::Playing || Screen == EHLScreen::Paused) && Sim.Phase != EPhase::Won)
+	{
+		Save->LastLevel = LevelIndex;
+		Save->LastCheckpoint = Sim.CheckpointIndex;
+		Save->LastTime = (float)Sim.PlayTime;
+		Save->LastDeaths = Sim.Deaths;
+	}
 	if (Screen == EHLScreen::Playing) { GoTo(EHLScreen::Paused); }
 	SaveProgress();
 }
@@ -362,6 +381,8 @@ void FHLGame::StepWorld(double Dt, const FHLControls& Controls)
 			{
 				// Progress is kept checkpoint by checkpoint: CONTINUE comes back to this one.
 				Save->LastCheckpoint = Sim.CheckpointIndex;
+				Save->LastTime = (float)Sim.PlayTime;
+				Save->LastDeaths = Sim.Deaths;
 				if (Save->ReachedCheckpoints.IsValidIndex(LevelIndex))
 				{
 					Save->ReachedCheckpoints[LevelIndex] = FMath::Max(Save->ReachedCheckpoints[LevelIndex], Sim.CheckpointIndex + 1);
@@ -442,6 +463,8 @@ void FHLGame::CompleteLevel()
 	}
 	Save->UnlockedLevels = FMath::Clamp(FMath::Max(Save->UnlockedLevels, LevelIndex + 2), 1, NumLevels());
 	Save->LastCheckpoint = -1;
+	Save->LastTime = 0.f;
+	Save->LastDeaths = 0;
 	if (Save->ReachedCheckpoints.IsValidIndex(LevelIndex)) { Save->ReachedCheckpoints[LevelIndex] = (int32)Sim.Level->Checkpoints.size(); }
 	const bool bLast = LevelIndex == NumLevels() - 1;
 	if (bLast)
@@ -517,13 +540,21 @@ void FHLGame::Activate(const FHLButton& B)
 		Back();
 		break;
 	case EHLAction::SelectLevel:
-		if (B.Param < Save->UnlockedLevels) { StartLevel(B.Param); }
+		// The level that was left half-way carries on from its last cairn; any other starts from the beginning.
+		if (B.Param < Save->UnlockedLevels) { StartLevel(B.Param, B.Param == Save->LastLevel ? Save->LastCheckpoint : -1); }
 		break;
 	case EHLAction::Resume:
 		GoTo(EHLScreen::Playing);
 		break;
 	case EHLAction::RestartCheckpoint:
-		StartLevel(LevelIndex, Sim.CheckpointIndex);
+		{
+			// The clock keeps running through a retry: going back to the cairn does not wind it back.
+			const double Time = Sim.PlayTime;
+			const int32 Falls = Sim.Deaths;
+			StartLevel(LevelIndex, Sim.CheckpointIndex);
+			Sim.PlayTime = Time;
+			Sim.Deaths = Falls;
+		}
 		break;
 	case EHLAction::RestartLevel:
 	case EHLAction::Replay:

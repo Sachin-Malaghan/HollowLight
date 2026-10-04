@@ -329,7 +329,7 @@ namespace
 		S.Text.Draw(TEXT("bring the light home"), S.W * 0.5, S.H * 0.36 + TitleH * 0.75, S.H * 0.026, WithAlpha(Dim, In), 0.5, 420);
 
 		const double Px = S.H * 0.036;
-		const bool bStarted = G.Save->LastLevel > 0 || G.Save->UnlockedLevels > 1;
+		const bool bStarted = G.Save->LastLevel > 0 || G.Save->UnlockedLevels > 1 || G.Save->LastCheckpoint >= 0;
 		const double Y0 = S.H * 0.60;
 		S.Button(bStarted ? TEXT("CONTINUE") : TEXT("PLAY"), S.W * 0.5, Y0, Px * 1.15, EHLAction::Play, 0, true, In);
 		S.Button(TEXT("LEVELS"), S.W * 0.5, Y0 + S.H * 0.095, Px, EHLAction::Levels, 0, true, In);
@@ -342,8 +342,10 @@ namespace
 		S.Text.Draw(ControlsHint(S.Ctx), S.W * 0.5, S.H - S.SafeB() - S.H * 0.05, S.H * 0.022, WithAlpha(Dim, In * 0.9), 0.5, 120);
 		if (bStarted)
 		{
-			const FString Where = FString::Printf(TEXT("%s  ·  %s  ·  %d of %d lights home"), Roman(G.Save->LastLevel + 1),
-				UTF8_TO_TCHAR(GetLevels()[G.Save->LastLevel].Name.c_str()), G.NumCleared(), G.NumLevels());
+			const int32 Cairns = (int32)GetLevels()[G.Save->LastLevel].Checkpoints.size();
+			const FString At = G.Save->LastCheckpoint >= 0 ? FString::Printf(TEXT("cairn %d of %d"), G.Save->LastCheckpoint + 1, Cairns) : FString(TEXT("from the start"));
+			const FString Where = FString::Printf(TEXT("%s  ·  %s  ·  %s  ·  %d of %d lights home"), Roman(G.Save->LastLevel + 1),
+				UTF8_TO_TCHAR(GetLevels()[G.Save->LastLevel].Name.c_str()), *At, G.NumCleared(), G.NumLevels());
 			S.Text.Draw(Where, S.W * 0.5, Y0 + S.H * 0.045, S.H * 0.02, WithAlpha(Faint, In), 0.5, 200);
 		}
 	}

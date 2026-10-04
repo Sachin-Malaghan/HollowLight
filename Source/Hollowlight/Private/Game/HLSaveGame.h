@@ -31,6 +31,8 @@ public:
 	// them all), and the checkpoint CONTINUE resumes from (-1 = the start of LastLevel).
 	UPROPERTY() TArray<int32> ReachedCheckpoints;
 	UPROPERTY() int32 LastCheckpoint = -1;
+	UPROPERTY() float LastTime = 0.f;          // the clock and the falls at that checkpoint, so a resumed run is honest
+	UPROPERTY() int32 LastDeaths = 0;
 	UPROPERTY() TArray<int32> EmberMask;       // per level: one bit for each ember found
 
 	UPROPERTY() bool bMusic = true;
