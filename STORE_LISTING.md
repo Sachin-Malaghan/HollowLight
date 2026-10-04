@@ -29,6 +29,12 @@ A child in a scarf carries the only warm thing left — a lantern — through el
 
 Bring the light home.
 
+## What's new (2.3.0)
+
+Three hidden embers to find in every level. A speedrun clock to the millisecond. A new level select with a
+picture of every place. Dust, sparks and a shake of the camera when things hit hard. Low mist over the
+ground. The dog now moves like a dog: it trails behind you, trots and gallops, and no longer darts about.
+
 ## What's new (2.2.0)
 
 Your progress is now kept checkpoint by checkpoint. A line of script at the top right tells you what each

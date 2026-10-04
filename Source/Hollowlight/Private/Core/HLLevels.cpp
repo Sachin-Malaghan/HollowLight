@@ -70,6 +70,7 @@ namespace HL
 				L.Crates = { { 1222, 300 } };
 				L.Traps = { { 950 }, { 2600 }, { 4450 } };
 				L.Logs = { { 3700, 50, 212, 0.95, 2.6, 0.0 } };
+				L.Embers = { { -300, 190 }, { 645, 200 }, { 1900, 100 } };
 				L.Checkpoints = { 160, 740, 1500, 2400, 3000, 3450, 4320 };
 				L.Theme.Seed = 11;
 				Levels.push_back(L);
@@ -99,6 +100,7 @@ namespace HL
 				L.Levers = { { 2180, 0 }, { 3040, 1 } };
 				L.DogTasks = { { 2560, 2895, 1 } };
 				L.Hints = { { 1900, 2290, 2180, 0 }, { 2400, 2895, 2880, 1 } };
+				L.Embers = { { -250, 195 }, { 1000, 100 }, { 3460, 200 } };
 				L.Checkpoints = { 150, 820, 1520, 2340, 2980, 3540 };
 				L.Solution = { Go(2180), Act(), WaitGate(0), Go(2700), Act(), WaitGate(1) };
 				L.Theme.Seed = 23;
@@ -124,6 +126,7 @@ namespace HL
 				L.Blocks = { { 5340, -400, 5400, 300 } };
 				L.Crates = { { 1200, 300 } };
 				L.Traps = { { 400 }, { 650 }, { 750 }, { 1500 }, { 1560 }, { 1620 }, { 2600 }, { 3200 }, { 3450 }, { 4100 }, { 4800 } };
+				L.Embers = { { 950, 200 }, { 3400, 110 }, { 4460, 200 } };
 				L.Checkpoints = { 150, 1020, 2340, 3020, 3820, 4540 };
 				L.Theme.Seed = 37;
 				L.Theme.Fog = 1.2;
@@ -156,6 +159,7 @@ namespace HL
 				L.Items = { { 2250, EItem::Handle, 130 } };
 				L.Sockets = { { 3240, EItem::Handle, 0 } };
 				L.Hints = { { 2050, 2450, 2250, 0 }, { 2900, 3300, 3240, 0 } };
+				L.Embers = { { 850, 60 }, { 2100, 10 }, { 2700, 190 } };
 				L.Checkpoints = { 150, 720, 1020, 1710, 3640 };
 				L.Solution = { Go(1688), Climb(), GoOn(2250, 130), Act(), Go(3240), Act(), WaitGate(0) };
 				L.Theme.Seed = 43;
@@ -183,6 +187,7 @@ namespace HL
 				L.Traps = { { 1300 }, { 1700 }, { 5150 } };
 				L.Logs = { { 4800, 50, 212, 0.95, 2.6, 0.0 } };
 				L.Water = { { 800, 1010, 339 }, { 1900, 2110, 339 }, { 4200, 4400, 339 } };
+				L.Embers = { { -300, 190 }, { 905, 215 }, { 3250, 70 } };
 				L.Checkpoints = { 150, 1030, 2130, 2920, 3620, 4420 };
 				L.Theme.Seed = 79;
 				L.Theme.Fog = 1.6;
@@ -218,6 +223,7 @@ namespace HL
 				L.Items = { { 1700, EItem::Crowbar, 120 } };
 				L.Sockets = { { 2560, EItem::Crowbar, 1 } };
 				L.Hints = { { 300, 895, 630, 0 }, { 1000, 2595, 1486, 1 }, { 2640, 3395, 3180, 2 } };
+				L.Embers = { { 400, 190 }, { 1850, 20 }, { 3700, 185 } };
 				L.Checkpoints = { 150, 960, 1300, 2660, 3450 };
 				L.Solution = { Go(630), Act(), WaitDogStay(), Go(1000), CallDog(), Go(1486), Climb(), GoOn(1700, 120), Act(),
 				               Go(2000), Go(2560), Act(), WaitGate(1), Go(3143) };
@@ -264,6 +270,7 @@ namespace HL
 				L.Items = { { 2950, EItem::Handle, 130 } };
 				L.Sockets = { { 3250, EItem::Handle, 1 } };
 				L.Hints = { { 1950, 2295, 2290, 0 }, { 2640, 3295, 2786, 1 } };
+				L.Embers = { { 700, 110 }, { 1700, 0 }, { 2380, 50 } };
 				L.Checkpoints = { 150, 920, 1960, 2660, 3660 };
 				L.Solution = { Go(1486), Climb(), Go(2100), Act(), WaitGate(0), Go(2786), Climb(), GoOn(2950, 130), Act(),
 				               Go(3250), Act(), WaitGate(1) };
@@ -307,6 +314,7 @@ namespace HL
 				L.Items = { { 2750, EItem::Crowbar, 300 } };
 				L.Sockets = { { 2900, EItem::Crowbar, 2, 300 } };
 				L.Hints = { { 620, 1195, 980, 0 }, { 1235, 1495, 1330, 1 }, { 2620, 2935, 2750, 2 } };
+				L.Embers = { { -300, 190 }, { 2100, 10 }, { 2800, 190 } };
 				L.Checkpoints = { 150, 620, 1560, 2620, 3020 };
 				L.Solution = { Go(945), WaitGate(0), Go(1330), Act(), WaitDogStay(), Go(1600), CallDog(), Go(2750), Act(),
 				               Go(2900), Act(), WaitGate(2), Go(2986), Climb() };
@@ -342,6 +350,7 @@ namespace HL
 				             { 5440, -400, 5500, 300 } };
 				L.Ladders = { { 988, -100, 80 } };
 				L.Traps = { { 1250 }, { 2450 } };
+				L.Embers = { { 1250, -215 }, { 2120, 200 }, { 4160, -25 } };
 				L.Checkpoints = { 150, 420, 1020, 2240, 2720, 3470, 4560 };
 				L.Theme.Seed = 89;
 				L.Theme.Setting = ESetting::Mountain;
@@ -374,6 +383,7 @@ namespace HL
 				L.Platforms = { { 4990, 290, 5310, 290, 80, 2.6, 0.0 } };
 				L.Crumbles = { { 3980, 4080, 285 }, { 4160, 4260, 280 } };
 				L.Water = { { 3100, 3310, 339 } };
+				L.Embers = { { 760, 200 }, { 1800, 66 }, { 5100, 170 } };
 				L.Checkpoints = { 150, 840, 1520, 2320, 3330, 4420, 5420 };
 				L.Theme.Seed = 97;
 				L.Theme.Brightness = 0.78;
@@ -403,6 +413,7 @@ namespace HL
 				L.Platforms = { { 4090, 290, 4410, 290, 80, 3.0, 0.0 } };
 				L.Crumbles = { { 5180, 5280, 285 }, { 5360, 5460, 285 } };
 				L.Water = { { 3200, 3410, 339 } };
+				L.Embers = { { 860, 200 }, { 2050, 70 }, { 6500, 185 } };
 				L.Checkpoints = { 150, 940, 1720, 2420, 3430, 4520, 5520, 6300 };
 				L.Theme.Seed = 101;
 				L.Theme.Rain = 0.4;

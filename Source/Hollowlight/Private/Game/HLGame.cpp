@@ -32,6 +32,7 @@ void FHLGame::Init(UHLSaveGame* InSave, IHLAudioSink* InAudio, bool bTouchDevice
 	}
 	if (Save->BestTimes.Num() < NumLevels()) { Save->BestTimes.SetNumZeroed(NumLevels()); }
 	if (Save->ReachedCheckpoints.Num() < NumLevels()) { Save->ReachedCheckpoints.SetNumZeroed(NumLevels()); }
+	if (Save->EmberMask.Num() < NumLevels()) { Save->EmberMask.SetNumZeroed(NumLevels()); }
 	if (Save->BestDeaths.Num() < NumLevels()) { Save->BestDeaths.SetNumZeroed(NumLevels()); }
 	Save->UnlockedLevels = FMath::Clamp(Save->UnlockedLevels, 1, NumLevels());
 	Save->LastLevel = FMath::Clamp(Save->LastLevel, 0, Save->UnlockedLevels - 1);
@@ -60,6 +61,127 @@ int32 FHLGame::ReachedCheckpoints(int32 Level) const
 	return Save->ReachedCheckpoints.IsValidIndex(Level) ? FMath::Clamp(Save->ReachedCheckpoints[Level], 0, Total) : 0;
 }
 
+int32 FHLGame::EmbersFound(int32 Level) const
+{
+	int32 N = 0;
+	for (int32 I = 0; I < Save->EmberMask.Num() && I < NumLevels(); ++I)
+	{
+		if (Level >= 0 && I != Level) { continue; }
+		const int32 Count = (int32)GetLevels()[I].Embers.size();
+		for (int32 K = 0; K < Count; ++K) { N += (Save->EmberMask[I] >> K) & 1; }
+	}
+	return N;
+}
+
+int32 FHLGame::EmbersTotal() const
+{
+	int32 N = 0;
+	for (const FLevelDef& L : GetLevels()) { N += (int32)L.Embers.size(); }
+	return N;
+}
+
+double FHLGame::TotalBestTime() const
+{
+	double Sum = 0;
+	for (int32 I = 0; I < NumLevels(); ++I)
+	{
+		if (!Save->BestTimes.IsValidIndex(I) || Save->BestTimes[I] <= 0) { return 0; }
+		Sum += Save->BestTimes[I];
+	}
+	return Sum;
+}
+
+double FHLGame::BodyStretch() const
+{
+	const FPlayer& P = Sim.P;
+	if (Sim.Phase == EPhase::Dying || P.Hang != 0 || P.Ladder >= 0) { return 0; }
+	double V = 0;
+	const double TL = RealTime - LandStamp, TJ = RealTime - JumpStamp;
+	if (TL >= 0 && TL < 0.5) { V -= LandStrength * 0.26 * FMath::Exp(-TL / 0.075); }   // squash on landing
+	if (TJ >= 0 && TJ < 0.5) { V += 0.2 * FMath::Exp(-TJ / 0.1); }                     // stretch on take-off
+	if (!P.Grounded) { V += FMath::Clamp(FMath::Abs(P.VY) / 900.0, 0.0, 1.0) * 0.07; } // and a little while flying
+	return FMath::Clamp(V, -0.3, 0.25);
+}
+
+void FHLGame::Burst(double X, double Y, int32 Count, double Speed, double Up, double Size, double Life, float Grey, float Alpha, double Gravity, bool bGrow, bool bWarm)
+{
+	for (int32 I = 0; I < Count && Particles.Num() < 360; ++I)
+	{
+		FHLParticle P;
+		const double A = FMath::FRandRange(0.0, 2.0 * PI);
+		const double V = Speed * FMath::FRandRange(0.35, 1.0);
+		P.X = X + FMath::FRandRange(-3.0, 3.0);
+		P.Y = Y + FMath::FRandRange(-1.5, 1.0);
+		P.VX = FMath::Cos(A) * V;
+		P.VY = FMath::Sin(A) * V * 0.45 - Up * FMath::FRandRange(0.4, 1.0);
+		P.Life = P.MaxLife = Life * FMath::FRandRange(0.6, 1.0);
+		P.Size = Size * FMath::FRandRange(0.6, 1.2);
+		P.Gravity = Gravity;
+		P.Grey = Grey;
+		P.Alpha = Alpha;
+		P.bGrow = bGrow;
+		P.bWarm = bWarm;
+		Particles.Add(P);
+	}
+}
+
+// Game feel: dust, grit, ash, a jolt of the camera, a squash of the body. None of it touches the simulation.
+void FHLGame::OnEventJuice(const HL::FEvent& E)
+{
+	switch (E.Type)
+	{
+	case EEvent::Footstep:
+		if (E.Strength > 0.7) { Burst(E.X, E.Y, 1, 14, 8, 2.2, 0.45, 0.42f, 0.22f, -6, true); }
+		break;
+	case EEvent::Jump:
+		JumpStamp = RealTime;
+		Burst(E.X, E.Y, 4, 26, 6, 2.4, 0.4, 0.42f, 0.26f, -6, true);
+		break;
+	case EEvent::Land:
+		LandStamp = RealTime;
+		LandStrength = FMath::Max(0.4, E.Strength);
+		Burst(E.X, E.Y, 4 + (int32)(E.Strength * 8.0), 30 + 50 * E.Strength, 8, 2.6, 0.55, 0.42f, 0.28f, -8, true);
+		break;
+	case EEvent::HardLand:
+	case EEvent::Roll:
+		Shake = FMath::Max(Shake, 2.2);
+		Burst(E.X, E.Y, 14, 90, 14, 3.2, 0.7, 0.42f, 0.32f, -8, true);
+		break;
+	case EEvent::Vault:
+		JumpStamp = RealTime;
+		break;
+	case EEvent::Slide:
+		Burst(E.X, E.Y, 6, 40, 6, 2.6, 0.5, 0.42f, 0.26f, -6, true);
+		break;
+	case EEvent::CrateLand:
+		Shake = FMath::Max(Shake, 0.8 + 1.2 * E.Strength);
+		Burst(E.X, E.Y, 10, 70, 10, 3.0, 0.6, 0.42f, 0.3f, -8, true);
+		break;
+	case EEvent::TrapSnap:
+	case EEvent::TrapSnapCrate:
+		Shake = FMath::Max(Shake, E.Type == EEvent::TrapSnap ? 3.0 : 1.8);
+		Burst(E.X, E.Y - 6, 8, 110, 60, 1.6, 0.5, 0.0f, 0.9f, 420, false);   // flecks of rust and earth
+		break;
+	case EEvent::GateShut:
+		Shake = FMath::Max(Shake, 1.2);
+		Burst(E.X, E.Y, 8, 60, 6, 2.8, 0.6, 0.42f, 0.28f, -8, true);
+		break;
+	case EEvent::Death:
+		Shake = FMath::Max(Shake, 3.0);
+		Burst(E.X, E.Y - 22, 26, 150, 70, 2.6, 0.9, 0.0f, 0.95f, 380, false);   // the dark comes apart
+		Burst(E.X, E.Y - 14, 8, 60, 50, 1.4, 0.7, 1.0f, 0.9f, 60, false, true);  // the last sparks of the lantern
+		break;
+	case EEvent::EmberCollect:
+		Burst(E.X, E.Y, 16, 90, 20, 1.6, 0.9, 1.0f, 0.9f, -30, false, true);
+		break;
+	case EEvent::DogPoof:
+		Burst(E.X, E.Y, 10, 50, 10, 3.0, 0.5, 0.5f, 0.3f, -10, true);
+		break;
+	default:
+		break;
+	}
+}
+
 FString FHLGame::WantedNote() const
 {
 	if (Screen != EHLScreen::Playing || bAttract || Sim.Phase != EPhase::Playing) { return FString(); }
@@ -81,6 +203,12 @@ void FHLGame::StartLevel(int32 Index, int32 Checkpoint)
 	LevelIndex = FMath::Clamp(Index, 0, NumLevels() - 1);
 	Sim.Load(GetLevels()[LevelIndex], Checkpoint);
 	Sim.P.JumpHeld = true;  // the key that confirmed the menu must be released before it jumps
+	// Embers found on an earlier visit stay found.
+	for (int32 K = 0; K < (int32)Sim.EmberTaken.size() && Save->EmberMask.IsValidIndex(LevelIndex); ++K)
+	{
+		if ((Save->EmberMask[LevelIndex] >> K) & 1) { Sim.EmberTaken[K] = true; }
+	}
+	Particles.Reset();
 	Pilot.Reset();
 	bAttract = false;
 	Accumulator = 0;
@@ -154,6 +282,33 @@ void FHLGame::Tick(float DeltaSeconds, const FHLControls& Controls, const FHLMen
 		}
 	}
 
+	// Particles drift, rise or fall, and fade (frozen while paused).
+	if (Screen != EHLScreen::Paused)
+	{
+		for (int32 I = Particles.Num() - 1; I >= 0; --I)
+		{
+			FHLParticle& Pt = Particles[I];
+			Pt.Life -= Dt;
+			if (Pt.Life <= 0) { Particles.RemoveAtSwap(I, EAllowShrinking::No); continue; }
+			Pt.VY += Pt.Gravity * Dt;
+			const double Drag = FMath::Exp(-Dt * (Pt.bGrow ? 3.0 : 1.2));
+			Pt.VX *= Drag;
+			if (Pt.bGrow) { Pt.VY *= Drag; }
+			Pt.X += Pt.VX * Dt;
+			Pt.Y += Pt.VY * Dt;
+		}
+		// Shoving a crate scuffs up a steady trail of dust.
+		if (Sim.Phase == EPhase::Playing && Sim.P.PushTimer > 0 && Sim.P.Grounded)
+		{
+			PushDust -= Dt;
+			if (PushDust <= 0)
+			{
+				PushDust = 0.07;
+				Burst(Sim.P.X + Sim.P.Facing * 12.0, Sim.P.Y, 1, 22, 8, 2.6, 0.5, 0.42f, 0.26f, -6, true);
+			}
+		}
+	}
+
 	Shake = FMath::Max(0.0, Shake - Dt * 12.0);
 	Lightning = FMath::Max(0.0, Lightning - Dt * 3.2);
 
@@ -195,8 +350,13 @@ void FHLGame::StepWorld(double Dt, const FHLControls& Controls)
 		Sim.Step(In);
 		for (const HL::FEvent& E : Sim.Events)
 		{
-			if (E.Type == EEvent::Death && (Sim.LastDeath == EDeath::Trap || Sim.LastDeath == EDeath::Log)) { Shake = 3.0; }
+			OnEventJuice(E);
 			if (E.Type == EEvent::Land && E.Strength > 0.75) { Shake = FMath::Max(Shake, 1.2); }
+			if (E.Type == EEvent::EmberCollect && !bAttract && !bAutopilotInPlay && Save->EmberMask.IsValidIndex(LevelIndex))
+			{
+				for (int32 K = 0; K < (int32)Sim.EmberTaken.size(); ++K) { if (Sim.EmberTaken[K]) { Save->EmberMask[LevelIndex] |= (1 << K); } }
+				SaveProgress();
+			}
 			if (E.Type == EEvent::Respawn) { PrevX = Sim.P.X; PrevY = Sim.P.Y; }
 			if (E.Type == EEvent::Checkpoint && !bAttract && !bAutopilotInPlay && Screen == EHLScreen::Playing)
 			{
@@ -393,6 +553,10 @@ void FHLGame::Activate(const FHLButton& B)
 		break;
 	case EHLAction::ToggleGrain:
 		Save->bFilmGrain = !Save->bFilmGrain;
+		SaveProgress();
+		break;
+	case EHLAction::ToggleTimer:
+		Save->bTimer = !Save->bTimer;
 		SaveProgress();
 		break;
 	case EHLAction::ToggleFlashing:

@@ -39,6 +39,10 @@ namespace HL
 	// barks at it: a nudge toward the next step, never the whole answer.
 	struct FHintDef { double X0, X1, PointX; int UntilGate; };
 
+	// An ember: an optional glowing thing to collect, three to a level, each a little out of the way.
+	// It is taken when it comes within 12 of the child's body.
+	struct FEmberDef { double X, Y; };
+
 	// A line of script shown at the top right of the screen while the child is inside [X0, X1] (and gate
 	// UntilGate, if given, is still shut): it says what the problem is, not how every step goes. Use \n
 	// for a second line. Button words: JUMP, SLIDE, WHISTLE, TAKE, USE, PULL.
@@ -100,6 +104,7 @@ namespace HL
 		bool bDog = false;           // the dog comes along on this level
 		bool bGhost = false;         // linger here and something comes for the light; the dog can see it off
 		std::vector<FNoteDef> Notes;
+		std::vector<FEmberDef> Embers;
 		FTheme Theme;
 	};
 

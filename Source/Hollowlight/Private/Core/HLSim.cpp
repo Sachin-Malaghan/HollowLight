@@ -106,6 +106,7 @@ namespace HL
 		LeverOn.assign(InLevel.Levers.size(), false);
 		PlateDown.assign(InLevel.Plates.size(), false);
 		SocketUsed.assign(InLevel.Sockets.size(), false);
+		EmberTaken.assign(InLevel.Embers.size(), false);
 		Items.clear();
 		for (const FItemDef& D : InLevel.Items)
 		{
@@ -934,6 +935,16 @@ namespace HL
 
 		MaxX = std::max(MaxX, P.X);
 
+		for (int I = 0; I < (int)Level->Embers.size(); ++I)
+		{
+			const FEmberDef& E = Level->Embers[I];
+			if (!EmberTaken[I] && E.X > Body.X0 - 12.0 && E.X < Body.X1 + 12.0 && E.Y > Body.Y0 - 12.0 && E.Y < Body.Y1 + 12.0)
+			{
+				EmberTaken[I] = true;
+				Emit(EEvent::EmberCollect, E.X, E.Y, (double)EmbersTaken());
+			}
+		}
+
 		if (P.X >= Level->GoalX - 20.0 && P.Grounded)
 		{
 			Phase = EPhase::Won;
@@ -1338,7 +1349,10 @@ namespace HL
 			{
 				D.Mode = EDogMode::Follow;
 				D.PointTrap = -1;
-				D.TargetX = P.X - PF * 34.0;
+				// It trails the child on whichever side it already is, and lets the child get a little ahead
+				// before it gets up: no darting through the child's legs every time the child turns round.
+				const double Side = P.X >= D.X ? 1.0 : -1.0;
+				D.TargetX = std::fabs(P.X - D.X) > 64.0 ? P.X - Side * 40.0 : D.X;
 			}
 		}
 
@@ -1347,12 +1361,12 @@ namespace HL
 		double Want = 0;
 		if (D.Mode != EDogMode::Stay && !bArrived)
 		{
-			Want = (ToTarget > 0 ? 1.0 : -1.0) * Clamp(std::fabs(ToTarget) * 5.0, 70.0, 300.0);
+			Want = (ToTarget > 0 ? 1.0 : -1.0) * Clamp(std::fabs(ToTarget) * 2.4, 50.0, 275.0);   // a walk, a trot, then a run
 		}
-		D.VX = Approach(D.VX, Want, 2400.0 * kStep);
+		D.VX = Approach(D.VX, Want, (Want != 0 ? 1100.0 : 1500.0) * kStep);
 		if (Want != 0) { D.Facing = Want > 0 ? 1 : -1; }
 		else if (D.Mode == EDogMode::Point && D.PointTrap >= 0) { D.Facing = Traps[D.PointTrap].X > D.X ? 1 : -1; }
-		else if (D.Mode == EDogMode::Follow) { D.Facing = PF; }
+		else if (D.Mode == EDogMode::Follow && std::fabs(P.X - D.X) > 12.0) { D.Facing = P.X > D.X ? 1 : -1; }   // it watches the child
 
 		// Hop over what a dog would hop over: a step, a gap it can clear, an open trap.
 		if (D.Grounded && Want != 0)
@@ -1445,7 +1459,8 @@ namespace HL
 		}
 		const double Moved = std::fabs(D.X - StartX);
 		D.StuckTime = (Want != 0 && Moved < 0.2 * std::fabs(Want) * kStep) ? D.StuckTime + kStep : 0.0;
-		D.RunPhase += Moved * 0.11;
+		// One turn of the phase is one stride: short at a trot, long at a gallop, so the legs never whirr.
+		D.RunPhase += Moved / Lerp(40.0, 90.0, SmoothStep(150.0, 230.0, std::fabs(D.VX))) * 2.0 * kPi;
 		D.SitTime = (Want == 0 && D.Grounded) ? D.SitTime + kStep : 0.0;
 
 		// Arrived somewhere it was sent.

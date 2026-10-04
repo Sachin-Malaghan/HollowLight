@@ -253,6 +253,13 @@ void UHLAudioSynth::OnSimEvent(const HL::FEvent& E, float Pan, float Distance)
 			Queue(B);
 		}
 		break;
+	case EEvent::EmberCollect:
+		for (int32 I = 0; I < 3; ++I)
+		{
+			const float Mult[3] = { 1.f, 1.25f, 1.5f };
+			FVoiceSpec N = V; N.Delay = 0.07f * I; N.Tone = 1; N.F0 = N.F1 = 1318.5f * Mult[I]; N.Harm = 0.4f; N.Dur = 1.5f; N.Amp = 0.04f; N.Wet = 0.65f; Queue(N);
+		}
+		break;
 	case EEvent::GhostAppear:
 		// Two voices a tritone apart, swelling out of nothing, and a cold breath under them.
 		V.Tone = 1; V.Attack = 0.9f; V.Dur = 2.8f; V.Hold = 0.3f; V.Vib = 0.03f; V.VibHz = 4.0f; V.Wet = 0.9f;

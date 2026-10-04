@@ -1,6 +1,7 @@
 // EMBERHOME: procedural world renderer. (CLAUDE.md: Rendering)
 #include "Render/HLWorldRenderer.h"
 
+#include "Game/HLGame.h"
 #include "Render/HLDraw.h"
 #include "Engine/Texture2D.h"
 #include "TextureResource.h"
@@ -202,6 +203,7 @@ void FHLWorldRenderer::Draw(FHLDraw& D, const FHLRenderView& InView)
 	DrawBackLight(D, V);
 	DrawPlayLayer(D, V);
 	DrawForeground(D, V);
+	DrawMist(D, V);
 	DrawRain(D, V);
 	DrawLight(D, V);
 	DrawVignetteAndGrain(D, V);
@@ -543,6 +545,7 @@ void FHLWorldRenderer::DrawPlayLayer(FHLDraw& D, const FHLRenderView& V)
 	DrawDog(D, V);
 	DrawPlayer(D, V);
 	DrawGhost(D, V);
+	DrawParticles(D, V);
 }
 
 void FHLWorldRenderer::DrawProps(FHLDraw& D, const FHLRenderView& V)
@@ -915,6 +918,15 @@ void FHLWorldRenderer::DrawPlayer(FHLDraw& D, const FHLRenderView& V)
 		}
 	}
 
+	// Squash on landing, stretch on take-off: the whole body about the feet.
+	if (V.Stretch != 0 && Pose != EPose::Hang && Pose != EPose::Climb && Pose != EPose::Ladder)
+	{
+		const double SY = 1.0 + V.Stretch, SX = 1.0 - V.Stretch * 0.6;
+		auto Sq = [&](FVector2D& Pt) { Pt.X = X + (Pt.X - X) * SX; Pt.Y = Y + (Pt.Y - Y) * SY; };
+		Sq(Hip); Sq(Shoulder); Sq(BackHand);
+		for (int Leg = 0; Leg < 2; ++Leg) { Sq(Knee[Leg]); Sq(Foot[Leg]); }
+	}
+
 	// Legs
 	for (int Leg = 0; Leg < 2; ++Leg)
 	{
@@ -1236,8 +1248,8 @@ void FHLWorldRenderer::DrawDog(FHLDraw& D, const FHLRenderView& V)
 	// Under something low (the gaps only it fits through) it goes belly-down.
 	const bool bLow = !S.IsFree({ X - 12.0, G.Y - 30.0, X + 12.0, G.Y - 17.0 });
 	const double Low = bLow ? 1.0 : 0.0;
-	const double Sit = (bPoint || bAir || bLow || Spd > 5.0) ? 0.0 : SmoothStep(0.4, 0.75, G.SitTime);
-	const double Cycle = G.RunPhase * 1.35 / (2.0 * PI);
+	const double Sit = (bPoint || bAir || bLow || Spd > 5.0) ? 0.0 : SmoothStep(1.3, 1.8, G.SitTime);
+	const double Cycle = G.RunPhase / (2.0 * PI);   // one stride per turn
 	const double GF = PawGround(S, X + F * 7.0, G.Y), GH = PawGround(S, X - F * 7.0, G.Y);
 	const double Bob = bAir ? 0.0 : FMath::Sin(Cycle * 4.0 * PI) * (0.5 + 0.9 * Gallop) * Move;
 
@@ -1246,8 +1258,9 @@ void FHLWorldRenderer::DrawDog(FHLDraw& D, const FHLRenderView& V)
 	D.SetTransform(V.Scale * Size, X - (X - V.CamX) / Size, G.Y - (G.Y - V.CamY) / Size);
 
 	// Shoulder and hip carry everything else. Sitting drops the hips; a gallop rocks the spine.
-	const FVector2D Sh(X + F * 7.0, GF - 14.5 + Bob + Low * 6.0 - Sit * 0.8);
-	const FVector2D Hp(X - F * (7.0 - Sit * 2.0), GH - 14.0 - Bob * 0.6 + Low * 6.0 + Sit * 7.5);
+	const double Rock = bAir ? 0.0 : FMath::Sin(Cycle * 2.0 * PI) * 1.7 * Gallop * Move;   // the spine rocks at a gallop
+	const FVector2D Sh(X + F * 7.0, GF - 15.3 + Bob + Rock + Low * 6.8 - Sit * 0.8);
+	const FVector2D Hp(X - F * (7.0 - Sit * 2.0), GH - 14.8 - Bob * 0.6 - Rock + Low * 6.8 + Sit * 8.3);
 
 	// Legs: an upper and a lower bone solved to where the paw is; hind legs add the long hock.
 	auto Leg = [&](bool bFront, double TrotOff, double GallopOff, bool bNear)
@@ -1257,8 +1270,8 @@ void FHLWorldRenderer::DrawDog(FHLDraw& D, const FHLRenderView& V)
 		double T = Cycle + FMath::Lerp(TrotOff, GallopOff, Gallop);
 		T -= FMath::FloorToDouble(T);
 		const double Stance = FMath::Lerp(0.55, 0.4, Gallop);
-		const double Amp = FMath::Lerp(4.5, 8.5, Gallop) * Move;
-		const double Lift = FMath::Lerp(2.6, 4.5, Gallop) * Move;
+		const double Amp = FMath::Lerp(6.0, 9.0, Gallop) * Move;
+		const double Lift = FMath::Lerp(3.0, 5.2, Gallop) * Move;
 		double FX = 0, FY = 0;
 		if (T < Stance) { FX = FMath::Lerp(Amp, -Amp, T / Stance); }           // paw planted, body passing over it
 		else
@@ -1273,7 +1286,7 @@ void FHLWorldRenderer::DrawDog(FHLDraw& D, const FHLRenderView& V)
 		if (bPoint && bFront && bNear) { Paw = FVector2D(Top.X + F * 3.5, GF - 6.5); }       // one paw lifted
 		if (bFront)
 		{
-			const FVector2D Elbow = LimbJoint(Top, Paw, 6.5, 6.5, F);
+			const FVector2D Elbow = LimbJoint(Top, Paw, 7.2, 7.2, F);
 			D.TaperLine(Top.X, Top.Y, Elbow.X, Elbow.Y, 3.8, 2.4, Black);
 			D.TaperLine(Elbow.X, Elbow.Y, Paw.X, Paw.Y, 2.4, 1.8, Black);
 			D.Circle(Elbow.X, Elbow.Y, 1.2, Black, 6);
@@ -1282,7 +1295,7 @@ void FHLWorldRenderer::DrawDog(FHLDraw& D, const FHLRenderView& V)
 		{
 			const FVector2D HockOff(-F * 2.2, -4.2);
 			FVector2D Hock = Paw + HockOff;
-			const FVector2D Knee = LimbJoint(Top, Hock, 6.5, 6.0, -F);
+			const FVector2D Knee = LimbJoint(Top, Hock, 7.0, 6.6, -F);
 			Paw = Hock - HockOff;
 			D.TaperLine(Top.X, Top.Y, Knee.X, Knee.Y, 5.0, 3.0, Black);
 			D.TaperLine(Knee.X, Knee.Y, Hock.X, Hock.Y, 3.0, 2.0, Black);
@@ -1359,6 +1372,59 @@ void FHLWorldRenderer::DrawDog(FHLDraw& D, const FHLRenderView& V)
 		}
 	}
 	D.SetTransform(V.Scale, V.CamX, V.CamY);
+}
+
+// Dust, grit and ash from FHLGame: grey puffs first, then the warm sparks added on top.
+void FHLWorldRenderer::DrawParticles(FHLDraw& D, const FHLRenderView& V)
+{
+	if (!V.Particles || V.Particles->Num() == 0) { return; }
+	D.SetTransform(V.Scale, V.CamX, V.CamY);
+	for (int Pass = 0; Pass < 2; ++Pass)
+	{
+		D.SetBlend(Pass == 0 ? SE_BLEND_Translucent : SE_BLEND_Additive);
+		for (const FHLParticle& Pt : *V.Particles)
+		{
+			if (Pt.bWarm != (Pass == 1) || Pt.X < VisibleX0 || Pt.X > VisibleX1) { continue; }
+			const double K = FMath::Clamp(Pt.Life / Pt.MaxLife, 0.0, 1.0);
+			const double R = Pt.Size * (Pt.bGrow ? 1.0 + (1.0 - K) * 1.6 : 0.4 + 0.6 * K);
+			if (Pt.bWarm) { D.Glow(Pt.X, Pt.Y, R * 2.2, Amber((float)(Pt.Alpha * K)), FLinearColor(0, 0, 0, 1), 8); }
+			else { D.Circle(Pt.X, Pt.Y, R, HLGrey(Pt.Grey, (float)(Pt.Alpha * (Pt.bGrow ? K : FMath::Min(1.0, K * 2.0)))), 8); }
+		}
+	}
+	D.SetBlend(SE_BLEND_Translucent);
+}
+
+// Low mist drifting across in front of everything: long pale wisps near the ground.
+void FHLWorldRenderer::DrawMist(FHLDraw& D, const FHLRenderView& V)
+{
+	const FTheme& T = V.Sim->Level->Theme;
+	const double Strength = 0.085 * T.Fog;
+	if (Strength <= 0.002) { return; }
+	const double Speed = 1.12;
+	const double OX = V.CamX * Speed;
+	D.SetBlend(SE_BLEND_Translucent);
+	D.SetTransform(V.Scale, OX, V.CamY);
+	const FLinearColor Edge = Shade(0xd2d3cd, T.Brightness, DawnWarmth(V) * 0.5, 0.f);
+	const double Cell = 330, Span = Cell * 3.0;
+	for (int32 C = FMath::FloorToInt((OX - 600) / Cell); C <= FMath::FloorToInt((OX + V.ViewW + 600) / Cell); ++C)
+	{
+		const uint32 S = Hash32(T.Seed * 71u + 29u, (uint32)(C + 400000));
+		const double Local = FMath::Fmod(Hash01(S, 1) * Span + V.Time * HashRange(S, 2, 5, 13), Span) - Cell;
+		const double CX = C * Cell + Local;
+		const double CY = HashRange(S, 3, 236, 318) + FMath::Sin(V.Time * 0.3 + C) * 6.0;
+		const double RX = HashRange(S, 4, 150, 280), RY = RX * HashRange(S, 5, 0.1, 0.17);
+		// fade in and out at the ends of its drift so it never pops
+		const double Fade = FMath::Sin(FMath::Clamp((Local + Cell) / Span, 0.0, 1.0) * PI);
+		FLinearColor In = Edge;
+		In.A = (float)(Strength * Fade * (0.7 + 0.3 * FMath::Sin(V.Time * 0.5 + C * 1.7)));
+		const int Segs = 20;
+		for (int I = 0; I < Segs; ++I)
+		{
+			const double A0 = 2 * PI * I / Segs, A1 = 2 * PI * (I + 1) / Segs;
+			D.TriColors(FVector2D(CX, CY), FVector2D(CX + FMath::Cos(A0) * RX, CY + FMath::Sin(A0) * RY),
+			            FVector2D(CX + FMath::Cos(A1) * RX, CY + FMath::Sin(A1) * RY), In, Edge, Edge);
+		}
+	}
 }
 
 // Something pale that comes for the light. The one thing in the play layer that is not black.
@@ -1866,6 +1932,19 @@ void FHLWorldRenderer::DrawLight(FHLDraw& D, const FHLRenderView& V)
 			const float A = (float)(I * (1.0 - K) * (K < 0.1 ? K * 10.0 : 1.0));
 			D.Glow(SP.X, SP.Y, 2.8 * V.Scale, Amber(0.7f * A), FLinearColor(0, 0, 0, 1), 8);
 		}
+	}
+
+	// Embers: three to a level, each a little out of the way. They glow through the dark.
+	for (int32 E = 0; E < (int32)S.Level->Embers.size(); ++E)
+	{
+		const FEmberDef& Em = S.Level->Embers[E];
+		if (S.EmberTaken[E] || Em.X < VisibleX0 || Em.X > VisibleX1) { continue; }
+		const double Bob = FMath::Sin(V.Time * 1.9 + Em.X * 0.01) * 3.0;
+		const FVector2D SP((Em.X - V.CamX) * V.Scale, (Em.Y + Bob - V.CamY) * V.Scale);
+		const float Pulse = (float)(0.8 + 0.2 * FMath::Sin(V.Time * 3.1 + E * 2.0));
+		D.Glow(SP.X, SP.Y, 26 * V.Scale, Amber(0.3f * Pulse), FLinearColor(0, 0, 0, 1), 20);
+		D.Glow(SP.X, SP.Y, 6.5 * V.Scale, Amber(1.1f * Pulse), Amber(0.25f * Pulse), 14);
+		D.Ellipse(SP.X, SP.Y, 2.2 * V.Scale, 2.8 * V.Scale, Amber(1.6f * Pulse), 10);
 	}
 
 	// Lit checkpoint wicks.

@@ -242,4 +242,32 @@ bool FHLGhost::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHLEmbers, "Hollowlight.Embers.ThreePerLevelWithinReach", HLTests::Flags)
+bool FHLEmbers::RunTest(const FString& Parameters)
+{
+	const std::vector<FLevelDef>& Levels = GetLevels();
+	for (int32 L = 0; L < (int32)Levels.size(); ++L)
+	{
+		TestEqual(FString::Printf(TEXT("level %d has three embers"), L + 1), (int32)Levels[L].Embers.size(), 3);
+		FSim Sim;
+		Sim.Load(Levels[L]);
+		for (const FEmberDef& E : Levels[L].Embers)
+		{
+			// Something to stand on (ground, a block, or water a crate can float in) within a jump below it,
+			// and the ember itself in open air.
+			bool bReach = false;
+			for (double DX = -70.0; DX <= 70.0 && !bReach; DX += 10.0)
+			{
+				const double Surface = Sim.SurfaceAt(E.X + DX, E.Y - 5.0);
+				bReach = Surface - E.Y > 0.0 && Surface - E.Y < 150.0;
+			}
+			for (const FWaterDef& W : Levels[L].Water) { bReach = bReach || (E.X > W.X0 && E.X < W.X1 && W.Surface - E.Y < 190.0); }
+			for (const FPlatformDef& Pf : Levels[L].Platforms) { bReach = bReach || (E.X > Pf.AX - 60 && E.X < Pf.BX + 60 && Pf.AY - E.Y < 150.0); }
+			TestTrue(FString::Printf(TEXT("level %d ember at (%.0f, %.0f) is within a jump of somewhere to stand"), L + 1, E.X, E.Y), bReach);
+			TestTrue(FString::Printf(TEXT("level %d ember at (%.0f, %.0f) is not buried"), L + 1, E.X, E.Y), Sim.IsFree({ E.X - 4, E.Y - 4, E.X + 4, E.Y + 4 }));
+		}
+	}
+	return true;
+}
+
 #endif

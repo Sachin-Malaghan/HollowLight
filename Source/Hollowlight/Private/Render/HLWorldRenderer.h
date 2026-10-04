@@ -7,6 +7,7 @@
 
 class FHLDraw;
 class UTexture2D;
+struct FHLParticle;
 
 struct FHLRenderView
 {
@@ -21,6 +22,8 @@ struct FHLRenderView
 	bool bGrain = true;
 	bool bAttract = false;
 	UTexture2D* GrainTexture = nullptr;
+	const TArray<FHLParticle>* Particles = nullptr;   // dust, grit, ash (FHLGame)
+	double Stretch = 0;               // squash (< 0) / stretch (> 0) of the child
 };
 
 class FHLWorldRenderer
@@ -51,6 +54,8 @@ private:
 	void DrawMechanisms(FHLDraw& D, const FHLRenderView& V);
 	void DrawDog(FHLDraw& D, const FHLRenderView& V);
 	void DrawGhost(FHLDraw& D, const FHLRenderView& V);
+	void DrawParticles(FHLDraw& D, const FHLRenderView& V);
+	void DrawMist(FHLDraw& D, const FHLRenderView& V);
 	void DrawRelics(FHLDraw& D, const FHLRenderView& V, const FLinearColor& Col, const FLinearColor& Gap, double X0, double X1, double Ground);
 	void DrawPlayer(FHLDraw& D, const FHLRenderView& V);
 	void DrawForeground(FHLDraw& D, const FHLRenderView& V);

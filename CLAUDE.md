@@ -203,6 +203,26 @@ Things to operate (`HLLevel.h`, `FSim::DoAct` / `UpdateMechanisms` / `UpdateDog`
   (`Saw`) for a small dog's two-yap bark, a human two-note whistle, and the ghost.
 - **Next (planned, not built): `STORYBOARD.md`** - chapters of ten stages each.
 
+## Round 4 (asked for 2026-10-04): game feel, embers, clock, hub, a calmer dog
+
+- **Juice lives in `FHLGame`, never in the sim** (`OnEventJuice`, `Burst`, `BodyStretch`): dust on footsteps,
+  jumps, landings, crate shoving; dark ash and lantern sparks on death; camera shake on every death, hard
+  landings, traps, crates and gates; the child squashes on landing and stretches on take-off (the renderer
+  scales the skeleton about the feet by `FHLRenderView::Stretch`). Low drifting mist in front (`DrawMist`).
+- **Embers** (`FLevelDef::Embers`, three per level, `FSim::EmberTaken`, saved as a bit mask per level the
+  moment one is taken): optional glowing things a little out of the way - over a pit, above a ledge, on a
+  wagon roof, behind the start. Shown top left in play, on each level card and in the totals. Test
+  `Hollowlight.Embers.*` checks each is in open air within a jump of somewhere to stand; they are NOT
+  verified by the autopilot, so place new ones conservatively (see the reach note in `HLLevels.cpp`).
+- **Clock**: top left, to the millisecond (Settings: TIMER). Best times and, once every level is cleared,
+  the sum of them on the level select.
+- **Level select** cards carry a small silhouette of the place (`DrawLevelIcon`, one case per level index:
+  add a case when adding a level).
+- **Dog**: trails the child on whichever side it already is and waits until the child is 64 away (no darting
+  through the child on every turn); speed 50-275 by distance with gentle acceleration; one turn of
+  `FDog::RunPhase` is one stride (40 units at a trot, 90 at a gallop) so the legs stride instead of whirring;
+  the spine rocks at a gallop; it sits only after 1.3 s of standing.
+
 ## Checklist
 
 - [x] Core sim, eleven levels, autopilot; harness + automation tests green

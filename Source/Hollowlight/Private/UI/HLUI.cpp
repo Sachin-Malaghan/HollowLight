@@ -353,6 +353,87 @@ namespace
 		S.Button(TEXT("‹  BACK"), S.SafeL() + S.H * 0.13, S.SafeT() + S.H * 0.08, S.H * 0.028, EHLAction::Back, 0, true, Alpha);
 	}
 
+	// A small silhouette of the place, behind the numeral of an unlocked chapter.
+	void DrawLevelIcon(FScreenCtx& S, int32 Index, const FBox2D& Bx, double In)
+	{
+		const double X0 = Bx.Min.X + 2, X1 = Bx.Max.X - 2, Y0 = Bx.Min.Y + 2, Y1 = Bx.Min.Y + (Bx.Max.Y - Bx.Min.Y) * 0.60;
+		const double W = X1 - X0, H = Y1 - Y0;
+		S.D.SetTransform(1, 0, 0);
+		S.D.SetBlend(SE_BLEND_Translucent);
+		S.D.RectV(X0, Y0, X1, Y1, FLinearColor(1, 1, 1, (float)(0.13 * In)), FLinearColor(1, 1, 1, (float)(0.04 * In)));   // a patch of grey sky
+		const FLinearColor K(0, 0, 0, (float)(0.8 * In)), G(1, 1, 1, (float)(0.22 * In));
+		auto R = [&](double U0, double V0, double U1, double V1, const FLinearColor& C) { S.D.Rect(X0 + U0 * W, Y0 + V0 * H, X0 + U1 * W, Y0 + V1 * H, C); };
+		auto T = [&](double U0, double V0, double U1, double V1, double U2, double V2, const FLinearColor& C)
+		{
+			S.D.Tri(X0 + U0 * W, Y0 + V0 * H, X0 + U1 * W, Y0 + V1 * H, X0 + U2 * W, Y0 + V2 * H, C);
+		};
+		const double Gd = 0.84;
+		if (Index != 4) { R(0, Gd, 1, 1, K); }
+		switch (Index)
+		{
+		case 0:   // the wood: trunks and a hanging log
+			R(0.10, 0, 0.19, Gd, K); R(0.40, 0, 0.45, Gd, K); R(0.70, 0, 0.82, Gd, K); R(0.91, 0, 0.95, Gd, K);
+			R(0.50, 0.52, 0.66, 0.62, K); R(0.535, 0, 0.545, 0.52, K); R(0.615, 0, 0.625, 0.52, K);
+			break;
+		case 1:   // a hill and a dog
+			T(0, Gd, 0.66, Gd, 0.32, 0.5, K);
+			R(0.70, 0.66, 0.86, 0.75, K); R(0.84, 0.59, 0.91, 0.68, K); T(0.84, 0.59, 0.87, 0.59, 0.85, 0.52, K);
+			T(0.70, 0.66, 0.70, 0.71, 0.63, 0.58, K); R(0.71, 0.75, 0.735, Gd, K); R(0.83, 0.75, 0.855, Gd, K);
+			break;
+		case 2:   // jaws in the grass
+			for (int32 I = 0; I < 8; ++I) { T(0.14 + I * 0.09, Gd, 0.22 + I * 0.09, Gd, 0.18 + I * 0.09, Gd - 0.2, K); }
+			R(0.02, 0, 0.09, Gd, K);
+			break;
+		case 3:   // the ridge
+			R(0.46, 0.38, 1, Gd, K); T(0.08, Gd, 0.46, Gd, 0.46, 0.38, K);
+			R(0.80, 0, 0.86, 0.38, K);
+			break;
+		case 4:   // still water and a crate
+			R(0, Gd, 0.28, 1, K); R(0.74, Gd, 1, 1, K); R(0.28, 0.93, 0.74, 1, K);
+			R(0.28, 0.915, 0.74, 0.93, G); R(0.44, 0.72, 0.58, 0.93, K);
+			break;
+		case 5:   // racking
+			R(0.15, 0.2, 0.18, Gd, K); R(0.82, 0.2, 0.85, Gd, K); R(0.15, 0.32, 0.85, 0.36, K); R(0.15, 0.57, 0.85, 0.61, K);
+			R(0.24, 0.19, 0.37, 0.32, K); R(0.55, 0.42, 0.72, 0.57, K); R(0.30, 0.68, 0.45, Gd, K);
+			R(0.598, 0, 0.606, 0.1, K); T(0.55, 0.16, 0.655, 0.16, 0.602, 0.09, K);
+			break;
+		case 6:   // a wagon on the sidings
+			R(0.16, 0.38, 0.76, 0.70, K);
+			S.D.Circle(X0 + 0.28 * W, Y0 + 0.76 * H, 0.085 * H, K, 14); S.D.Circle(X0 + 0.64 * W, Y0 + 0.76 * H, 0.085 * H, K, 14);
+			R(0.89, 0.1, 0.91, Gd, K); R(0.85, 0.16, 0.95, 0.19, K);
+			break;
+		case 7:   // the station canopy
+			R(0, 0.2, 1, 0.28, K);
+			for (int32 I = 0; I < 10; ++I) { T(I * 0.1, 0.28, (I + 1) * 0.1, 0.28, (I + 0.5) * 0.1, 0.36, K); }
+			R(0.2, 0.28, 0.23, Gd, K); R(0.77, 0.28, 0.8, Gd, K);
+			S.D.Circle(X0 + 0.5 * W, Y0 + 0.56 * H, 0.09 * H, G, 16);
+			break;
+		case 8:   // the mountain
+			T(0, Gd, 0.62, Gd, 0.3, 0.1, K); T(0.4, Gd, 1, Gd, 0.72, 0.28, K);
+			break;
+		case 9:   // the storm
+			R(0.08, 0, 0.18, Gd, K); R(0.78, 0, 0.86, Gd, K);
+			T(0.50, 0.04, 0.58, 0.04, 0.46, 0.42, FLinearColor(1, 1, 1, (float)(0.5 * In)));
+			T(0.53, 0.36, 0.45, 0.36, 0.5, 0.8, FLinearColor(1, 1, 1, (float)(0.5 * In)));
+			break;
+		case 10:  // home: a house and the lamp post
+			R(0.52, 0.5, 0.86, Gd, K); T(0.47, 0.5, 0.91, 0.5, 0.69, 0.24, K);
+			R(0.2, 0.3, 0.22, Gd, K); R(0.2, 0.3, 0.3, 0.325, K);
+			S.D.SetBlend(SE_BLEND_Additive);
+			S.D.Glow(X0 + 0.3 * W, Y0 + 0.38 * H, 0.16 * H, FLinearColor(0.8f * (float)In, 0.5f * (float)In, 0.16f * (float)In, 1), FLinearColor(0, 0, 0, 1), 14);
+			S.D.SetBlend(SE_BLEND_Translucent);
+			break;
+		default:
+			break;
+		}
+	}
+
+	FString FormatClock(double Seconds)
+	{
+		const int32 Ms = FMath::FloorToInt(Seconds * 1000.0 + 0.5);
+		return FString::Printf(TEXT("%d:%02d.%03d"), Ms / 60000, (Ms / 1000) % 60, Ms % 1000);
+	}
+
 	void DrawLevelSelect(FScreenCtx& S)
 	{
 		FHLGame& G = S.Game;
@@ -361,7 +442,9 @@ namespace
 		S.Text.Draw(TEXT("LEVELS"), S.W * 0.5, S.H * 0.13, S.H * 0.042, WithAlpha(Ink, In), 0.5, 500);
 
 		const int32 N = G.NumLevels();
-		S.Text.Draw(FString::Printf(TEXT("%d of %d lights brought home"), G.NumCleared(), N), S.W * 0.5, S.H * 0.19, S.H * 0.021, WithAlpha(Dim, In), 0.5, 160);
+		FString Tally = FString::Printf(TEXT("%d of %d lights brought home   ·   %d of %d embers"), G.NumCleared(), N, G.EmbersFound(), G.EmbersTotal());
+		if (G.TotalBestTime() > 0) { Tally += FString::Printf(TEXT("   ·   all levels %s"), *FormatClock(G.TotalBestTime())); }
+		S.Text.Draw(Tally, S.W * 0.5, S.H * 0.19, S.H * 0.021, WithAlpha(Dim, In), 0.5, 120);
 		const int32 Cols = N > 10 ? 6 : 5;
 		const double GridW = FMath::Min(S.W - S.SafeL() - S.SafeR() - S.H * 0.2, S.H * 1.75);
 		const double CellW = GridW / Cols, CellH = S.H * 0.27;
@@ -389,6 +472,19 @@ namespace
 			S.D.Rect(Bx.Min.X, Bx.Min.Y, Bx.Min.X + T, Bx.Max.Y, Edge);
 			S.D.Rect(Bx.Max.X - T, Bx.Min.Y, Bx.Max.X, Bx.Max.Y, Edge);
 			if (bFocus) { S.D.Rect(Bx.Min.X, Bx.Min.Y, Bx.Max.X, Bx.Max.Y, WithAlpha(Ember, 0.06 * In)); }
+			if (bOpen)
+			{
+				DrawLevelIcon(S, I, Bx, In);
+				// the embers of this chapter, top left
+				const int32 Count = (int32)GetLevels()[I].Embers.size();
+				S.D.SetBlend(SE_BLEND_Translucent);
+				for (int32 K = 0; K < Count; ++K)
+				{
+					const bool bGot = G.Save->EmberMask.IsValidIndex(I) && ((G.Save->EmberMask[I] >> K) & 1);
+					const double EX = Bx.Min.X + CellW * 0.08 + K * S.H * 0.017, EY = Bx.Min.Y + CellH * 0.1, ER = S.H * 0.006;
+					S.D.Quad(FVector2D(EX, EY - ER), FVector2D(EX + ER * 0.75, EY), FVector2D(EX, EY + ER), FVector2D(EX - ER * 0.75, EY), bGot ? WithAlpha(Ember, In) : WithAlpha(Faint, In * 0.7));
+				}
+			}
 
 			const FLinearColor NumCol = WithAlpha(bOpen ? Ink : Faint, In);
 			FHLUI::DrawSerifWord(S.D, Roman(I + 1), CX, CY - CellH * 0.02, CellH * 0.24, CellH * 0.03, NumCol);
@@ -397,7 +493,7 @@ namespace
 			const float Best = G.Save->BestTimes.IsValidIndex(I) ? G.Save->BestTimes[I] : 0.f;
 			if (bOpen && Best > 0)
 			{
-				S.Text.Draw(FString::Printf(TEXT("best %s"), *FormatTime(Best)), CX, CY + CellH * 0.28, S.H * 0.018, WithAlpha(Faint, In), 0.5, 80);
+				S.Text.Draw(FString::Printf(TEXT("best %s"), *FormatClock(Best)), CX, CY + CellH * 0.28, S.H * 0.018, WithAlpha(Faint, In), 0.5, 80);
 			}
 			if (bOpen)
 			{
@@ -432,13 +528,14 @@ namespace
 		const UHLSaveGame* Sv = G.Save;
 		auto OnOff = [](bool b) { return b ? TEXT("ON") : TEXT("OFF"); };
 		const TCHAR* Touch = Sv->TouchMode == EHLTouchMode::Auto ? TEXT("AUTO") : (Sv->TouchMode == EHLTouchMode::On ? TEXT("ON") : TEXT("OFF"));
-		const double Px = S.H * 0.030, Step = S.H * 0.085, Y = S.H * 0.28;
+		const double Px = S.H * 0.028, Step = S.H * 0.075, Y = S.H * 0.245;
 		S.Button(FString::Printf(TEXT("MUSIC   %s"), OnOff(Sv->bMusic)), S.W * 0.5, Y, Px, EHLAction::ToggleMusic, 0, true, In);
 		S.Button(FString::Printf(TEXT("SOUND   %s"), OnOff(Sv->bSound)), S.W * 0.5, Y + Step, Px, EHLAction::ToggleSound, 0, true, In);
 		S.Button(FString::Printf(TEXT("TOUCH CONTROLS   %s"), Touch), S.W * 0.5, Y + Step * 2, Px, EHLAction::CycleTouch, 0, true, In);
 		S.Button(FString::Printf(TEXT("FILM GRAIN   %s"), OnOff(Sv->bFilmGrain)), S.W * 0.5, Y + Step * 3, Px, EHLAction::ToggleGrain, 0, true, In);
 		S.Button(FString::Printf(TEXT("REDUCE FLASHING   %s"), OnOff(Sv->bReduceFlashing)), S.W * 0.5, Y + Step * 4, Px, EHLAction::ToggleFlashing, 0, true, In);
-		double Row = 5.0;
+		S.Button(FString::Printf(TEXT("TIMER   %s"), OnOff(Sv->bTimer)), S.W * 0.5, Y + Step * 5, Px, EHLAction::ToggleTimer, 0, true, In);
+		double Row = 6.0;
 		if (S.Ctx.bShowTouch || S.Ctx.bTouchDevice)
 		{
 			S.Button(TEXT("CALIBRATE TOUCH"), S.W * 0.5, Y + Step * Row, Px, EHLAction::Calibrate, 0, true, In);
@@ -525,8 +622,9 @@ namespace
 		{
 			S.Text.Draw(TEXT("thank you for carrying it"), S.W * 0.5, Y + S.H * 0.075, S.H * 0.026, WithAlpha(Dim, In), 0.5, 300);
 		}
-		FString Stats = FString::Printf(TEXT("%s  ·  %s   ·   time %s   ·   %d %s"), Roman(G.LevelIndex + 1),
-			UTF8_TO_TCHAR(G.CurrentLevel().Name.c_str()), *FormatTime(G.ResultTime), G.ResultDeaths, G.ResultDeaths == 1 ? TEXT("fall") : TEXT("falls"));
+		FString Stats = FString::Printf(TEXT("%s  ·  %s   ·   time %s   ·   %d %s   ·   embers %d of %d"), Roman(G.LevelIndex + 1),
+			UTF8_TO_TCHAR(G.CurrentLevel().Name.c_str()), *FormatClock(G.ResultTime), G.ResultDeaths, G.ResultDeaths == 1 ? TEXT("fall") : TEXT("falls"),
+			G.Sim.EmbersTaken(), (int32)G.Sim.EmberTaken.size());
 		S.Text.Draw(Stats, S.W * 0.5, Y + S.H * (bEnding ? 0.14 : 0.09), S.H * 0.023, WithAlpha(Dim, In), 0.5, 120);
 		if (G.bNewBest && G.ScreenTime > 0.6)
 		{
@@ -601,6 +699,24 @@ namespace
 			if (HintA > 0.001)
 			{
 				S.Text.Draw(ControlsHint(S.Ctx), S.W * 0.5, S.H * 0.12, S.H * 0.024, WithAlpha(Ink, HintA * 0.85), 0.5, 120);
+			}
+		}
+
+		// Top left: the clock (to the millisecond, for anyone racing) and this level's three embers.
+		{
+			const double LX = S.SafeL() + S.H * 0.05, LY = S.SafeT() + S.H * 0.075;
+			if (G.Save->bTimer)
+			{
+				S.Text.Draw(FormatClock(G.Sim.PlayTime), LX, LY, S.H * 0.03, WithAlpha(Ink, 0.75), 0.0, 60);
+			}
+			S.D.SetTransform(1, 0, 0);
+			S.D.SetBlend(SE_BLEND_Translucent);
+			for (int32 K = 0; K < (int32)G.Sim.EmberTaken.size(); ++K)
+			{
+				const double EX = LX + S.H * 0.008 + K * S.H * 0.03, EY = LY + S.H * 0.045, ER = S.H * 0.009;
+				const bool bGot = G.Sim.EmberTaken[K];
+				S.D.Quad(FVector2D(EX, EY - ER), FVector2D(EX + ER * 0.75, EY), FVector2D(EX, EY + ER), FVector2D(EX - ER * 0.75, EY),
+					bGot ? WithAlpha(Ember, 0.95) : FLinearColor(1, 1, 1, 0.2f));
 			}
 		}
 

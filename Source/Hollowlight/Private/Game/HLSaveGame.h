@@ -31,12 +31,14 @@ public:
 	// them all), and the checkpoint CONTINUE resumes from (-1 = the start of LastLevel).
 	UPROPERTY() TArray<int32> ReachedCheckpoints;
 	UPROPERTY() int32 LastCheckpoint = -1;
+	UPROPERTY() TArray<int32> EmberMask;       // per level: one bit for each ember found
 
 	UPROPERTY() bool bMusic = true;
 	UPROPERTY() bool bSound = true;
 	UPROPERTY() EHLTouchMode TouchMode = EHLTouchMode::Auto;
 	UPROPERTY() bool bFilmGrain = true;
 	UPROPERTY() bool bReduceFlashing = false;
+	UPROPERTY() bool bTimer = true;            // the speedrun clock on the play screen
 
 	// Touch calibration ("touch the light"): reported = Scale * true + Offset, in screen fractions.
 	UPROPERTY() bool bTouchCalibrated = false;

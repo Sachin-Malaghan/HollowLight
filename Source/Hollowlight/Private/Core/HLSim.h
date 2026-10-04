@@ -22,7 +22,7 @@ namespace HL
 		Checkpoint, Goal, CrateLand, CrateSplash, CrateReset, Splash, CrumbleCreak, CrumbleFall, LogSwoosh,
 		Slide, Vault, Grab, Climb, Roll, HardLand,
 		Lever, GateOpen, GateShut, PlateDown, PlateUp, Pickup, UseTool, Whistle, Bark, LadderStep, DogPoof,
-		GhostAppear, GhostFlee
+		GhostAppear, GhostFlee, EmberCollect
 	};
 
 	// What the body is doing, for the renderer.
@@ -206,6 +206,8 @@ namespace HL
 		std::vector<bool> PlateDown;
 		std::vector<FItem> Items;
 		std::vector<bool> SocketUsed;
+		std::vector<bool> EmberTaken;
+		int EmbersTaken() const { int N = 0; for (bool b : EmberTaken) { N += b ? 1 : 0; } return N; }
 		FDog Dog;
 		FGhost Ghost;
 		double Linger = 0;        // seconds since the child last got further (the ghost's cue)

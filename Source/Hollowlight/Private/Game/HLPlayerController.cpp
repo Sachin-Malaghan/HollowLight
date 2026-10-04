@@ -60,6 +60,7 @@ namespace
 				for (float& T : PC->Save->BestTimes) { T = 0; }
 				for (int32& D : PC->Save->BestDeaths) { D = 0; }
 				for (int32& C : PC->Save->ReachedCheckpoints) { C = 0; }
+				for (int32& M : PC->Save->EmberMask) { M = 0; }
 				PC->Save->LastCheckpoint = -1;
 				PC->Game.SaveProgress();
 			}

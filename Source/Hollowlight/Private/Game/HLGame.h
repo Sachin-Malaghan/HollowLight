@@ -17,7 +17,7 @@ enum class EHLAction : uint8
 {
 	None, Play, Levels, Settings, Credits, Back, SelectLevel, Resume, RestartCheckpoint, RestartLevel,
 	QuitToTitle, NextLevel, Replay, ToggleMusic, ToggleSound, CycleTouch, ToggleGrain, ToggleFlashing,
-	Pause, PlayAgain, Quit, PrivacyPolicy, Calibrate, SkipCalibrate
+	Pause, PlayAgain, Quit, PrivacyPolicy, Calibrate, SkipCalibrate, ToggleTimer
 };
 
 enum class EHLUiSound : uint8 { Move, Select, Back };
@@ -28,6 +28,18 @@ struct FHLControls
 	bool Jump = false;
 	bool Down = false;   // slide / crouch
 	bool Act = false;    // use / pick up / whistle for the dog
+};
+
+// A speck of dust, grit or ash. Purely for show: lives in the game, not the simulation.
+struct FHLParticle
+{
+	double X = 0, Y = 0, VX = 0, VY = 0;
+	double Life = 0, MaxLife = 1;
+	double Size = 1;
+	double Gravity = 0;
+	float Grey = 0.4f, Alpha = 0.3f;
+	bool bGrow = true;    // dust swells as it thins; debris shrinks
+	bool bWarm = false;   // ember sparks: drawn in the lantern's colour, additively
 };
 
 struct FHLMenuInput
@@ -79,6 +91,11 @@ public:
 	int32 NumLevels() const;
 	int32 NumCleared() const;                       // levels finished at least once
 	int32 ReachedCheckpoints(int32 Level) const;    // checkpoints of that level reached so far
+	int32 EmbersFound(int32 Level = -1) const;      // embers found in that level (-1 = in all of them)
+	int32 EmbersTotal() const;
+	double TotalBestTime() const;                   // sum of the best times, 0 until every level is cleared
+	double BodyStretch() const;                     // squash (< 0) and stretch (> 0) of the child, for the renderer
+	TArray<FHLParticle> Particles;
 	const HL::FLevelDef& CurrentLevel() const { return *Sim.Level; }
 
 	// State (read by the HUD)
@@ -133,6 +150,9 @@ private:
 	void Back();
 	void CompleteLevel();
 	FString WantedNote() const;
+	void Burst(double X, double Y, int32 Count, double Speed, double Up, double Size, double Life, float Grey, float Alpha, double Gravity, bool bGrow, bool bWarm = false);
+	void OnEventJuice(const HL::FEvent& E);
+	double LandStamp = -10, LandStrength = 0, JumpStamp = -10, PushDust = 0;
 
 	IHLAudioSink* Audio = nullptr;
 	double NextLightningCheck = 0;

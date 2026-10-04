@@ -46,6 +46,8 @@ void AHLHUD::DrawHUD()
 	V.bGrain = PC->Save->bFilmGrain;
 	V.bAttract = Game.bAttract;
 	V.GrainTexture = Grain;
+	V.Particles = &Game.Particles;
+	V.Stretch = Game.BodyStretch();
 	Renderer.Draw(D, V);
 
 	if (!Game.bHideUI)
