@@ -107,6 +107,7 @@ namespace HL
 		PlateDown.assign(InLevel.Plates.size(), false);
 		SocketUsed.assign(InLevel.Sockets.size(), false);
 		EmberTaken.assign(InLevel.Embers.size(), false);
+		ResetDangers();
 		Items.clear();
 		for (const FItemDef& D : InLevel.Items)
 		{
@@ -216,6 +217,7 @@ namespace HL
 		Time += kStep;
 		PhaseTime += kStep;
 		UpdateMovers();
+		UpdateDangers();
 		UpdateCrates();
 		UpdateMechanisms();
 		if (Phase != EPhase::Dying) { UpdateDog(); }
@@ -912,6 +914,36 @@ namespace HL
 			}
 		}
 
+		for (int I = 0; I < (int)Level->Hazards.size(); ++I)
+		{
+			if (!HazardActive(I)) { continue; }
+			const FRect H = HazardBox(I);
+			const FRect HIn = { H.X0 + 2, H.Y0 + 2, H.X1 - 2, H.Y1 - 1 };
+			if (Inner.Overlaps(HIn))
+			{
+				Kill(Level->Hazards[I].Kind == EHazard::Fire ? EDeath::Fire : EDeath::Machine);
+				return;
+			}
+		}
+		for (int I = 0; I < (int)Level->Floods.size(); ++I)
+		{
+			const FFloodDef& F = Level->Floods[I];
+			if (FloodOn[I] && P.X >= F.X0 && P.X <= F.X1 && P.Y > FloodY[I] + 10.0)
+			{
+				Emit(EEvent::Splash, P.X, FloodY[I]);
+				Kill(EDeath::Water);
+				return;
+			}
+		}
+		for (const FChaser& C : Chasers)
+		{
+			if (C.State == 1 && std::fabs(C.X - P.X) < 18.0 && std::fabs(C.Y - P.Y) < 50.0)
+			{
+				Kill(EDeath::Wolf);
+				return;
+			}
+		}
+
 		if (P.Grounded && P.SupportKind == ESupport::Crumble && P.SupportIndex >= 0)
 		{
 			FCrumble& C = Crumbles[P.SupportIndex];
@@ -974,6 +1006,7 @@ namespace HL
 			T.ByCrate = bHeld;
 		}
 		for (FCrumble& C : Crumbles) { C = FCrumble(); }
+		ResetDangers();
 	}
 
 	void FSim::Respawn()
@@ -1045,7 +1078,7 @@ namespace HL
 		const double Before = Pl.LadderPhase;
 		Pl.Y += V * kStep;
 		Pl.LadderPhase += std::fabs(V) * kStep * 0.09;
-		if (std::floor(Pl.LadderPhase / kPi) != std::floor(Before / kPi)) { Emit(EEvent::LadderStep, Pl.X, Pl.Y); }
+		if (std::floor(Pl.LadderPhase / kPi) != std::floor(Before / kPi)) { Emit(EEvent::LadderStep, Pl.X, Pl.Y, L.bRope ? 2.0 : 1.0); }
 
 		auto StepOff = [&](double Y)
 		{
@@ -1284,6 +1317,119 @@ namespace HL
 		{
 			Items[P.Carry].X = P.X;
 			Items[P.Carry].Y = P.Y;
+		}
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// Chapter two: machines, fire, rising water, the wolf
+
+	double FSim::HazardPhase(int I) const
+	{
+		const FHazardDef& H = Level->Hazards[I];
+		if (H.Period <= 0) { return 0; }
+		const double U = Time / H.Period + H.Phase;
+		return U - std::floor(U);
+	}
+
+	bool FSim::HazardActive(int I) const
+	{
+		const FHazardDef& H = Level->Hazards[I];
+		return H.Kind != EHazard::Fire || H.Period <= 0 || HazardPhase(I) < H.Duty;
+	}
+
+	FRect FSim::HazardBox(int I) const
+	{
+		const FHazardDef& H = Level->Hazards[I];
+		FRect R = { H.X0, H.Y0, H.X1, H.Y1 };
+		const double U = HazardPhase(I);
+		if (H.Kind == EHazard::Crusher)
+		{
+			// held up, a fast slam, held down a moment, a slow climb back
+			const double D = U < 0.45 ? 0.0 : U < 0.55 ? ((U - 0.45) / 0.1) * ((U - 0.45) / 0.1) : U < 0.70 ? 1.0 : 1.0 - (U - 0.70) / 0.30;
+			R.Y0 += D * H.Travel;
+			R.Y1 += D * H.Travel;
+		}
+		else if (H.Kind == EHazard::Saw)
+		{
+			const double D = 0.5 - 0.5 * std::cos(2.0 * kPi * U);
+			R.X0 += D * H.Travel;
+			R.X1 += D * H.Travel;
+		}
+		return R;
+	}
+
+	void FSim::ResetDangers()
+	{
+		FloodY.assign(Level->Floods.size(), 0.0);
+		for (int I = 0; I < (int)FloodY.size(); ++I) { FloodY[I] = Level->Floods[I].StartY; }
+		FloodOn.assign(Level->Floods.size(), false);
+		Chasers.assign(Level->Chasers.size(), FChaser());
+	}
+
+	void FSim::UpdateDangers()
+	{
+		const FLevelDef& L = *Level;
+		for (int I = 0; I < (int)L.Hazards.size(); ++I)
+		{
+			const FHazardDef& H = L.Hazards[I];
+			if (H.Period <= 0) { continue; }
+			const double Now = HazardPhase(I);
+			double Before = (Time - kStep) / H.Period + H.Phase;
+			Before -= std::floor(Before);
+			if (H.Kind == EHazard::Crusher && Before < 0.55 && Now >= 0.55) { Emit(EEvent::Crush, (H.X0 + H.X1) * 0.5, H.Y1 + H.Travel); }
+			if (H.Kind == EHazard::Fire && H.Duty < 1.0 && Now < Before) { Emit(EEvent::FireOn, (H.X0 + H.X1) * 0.5, H.Y1); }
+		}
+		if (Phase != EPhase::Playing) { return; }
+
+		for (int I = 0; I < (int)L.Floods.size(); ++I)
+		{
+			const FFloodDef& F = L.Floods[I];
+			if (!FloodOn[I] && P.X >= F.TriggerX)
+			{
+				FloodOn[I] = true;
+				Emit(EEvent::FloodStart, P.X, F.StartY);
+			}
+			if (FloodOn[I]) { FloodY[I] = std::max(F.EndY, FloodY[I] - F.Speed * kStep); }
+		}
+
+		for (int I = 0; I < (int)L.Chasers.size(); ++I)
+		{
+			const FChaserDef& D = L.Chasers[I];
+			FChaser& C = Chasers[I];
+			if (C.State == 0)
+			{
+				if (P.X >= D.TriggerX)
+				{
+					C.State = 1;
+					C.X = D.StartX;
+					C.Y = SurfaceAt(D.StartX, -kWorldBottom);
+					Emit(EEvent::WolfHowl, C.X, C.Y - 20.0);
+				}
+			}
+			else if (C.State == 1)
+			{
+				C.X += D.Speed * kStep;
+				C.RunPhase += D.Speed * kStep / 105.0 * 2.0 * kPi;
+				// It keeps to the ground, and clears a pit in its stride.
+				const double Ground = SurfaceAt(C.X, C.Y - 60.0);
+				if (Ground < kWorldBottom * 0.5 && Ground - C.Y < 260.0) { C.Y = Approach(C.Y, Ground, 520.0 * kStep); }
+				if (C.X >= D.EndX)
+				{
+					C.State = 2;
+					C.Timer = 0;
+					Emit(EEvent::WolfGiveUp, C.X, C.Y - 20.0);
+				}
+			}
+			else if (C.State == 2)
+			{
+				C.Timer += kStep;
+				if (C.Timer > 0.9)
+				{
+					C.X -= 130.0 * kStep;   // it slinks back the way it came
+					C.RunPhase += 130.0 * kStep / 60.0 * 2.0 * kPi;
+				}
+				if (C.Timer > 4.0) { C.State = 3; }
+			}
 		}
 	}
 

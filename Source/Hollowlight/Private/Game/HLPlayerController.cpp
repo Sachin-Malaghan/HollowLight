@@ -26,7 +26,7 @@ namespace
 		return World ? Cast<AHLPlayerController>(World->GetFirstPlayerController()) : nullptr;
 	}
 
-	FAutoConsoleCommandWithWorldAndArgs CmdPlay(TEXT("hl.Play"), TEXT("hl.Play <level 1-11> [checkpoint 0-n]  start a level"),
+	FAutoConsoleCommandWithWorldAndArgs CmdPlay(TEXT("hl.Play"), TEXT("hl.Play <level 1-21> [checkpoint 0-n]  start a level"),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			if (AHLPlayerController* PC = FindController(World))
@@ -100,6 +100,7 @@ namespace
 	const FCaptureShot CaptureScript[] = {
 		{ 0, -1, EHLScreen::Title, false, 7.0f, TEXT("01_title") },
 		{ -1, 0, EHLScreen::LevelSelect, false, 1.2f, TEXT("02_levels") },
+		{ -1, 1, EHLScreen::LevelSelect, false, 1.2f, TEXT("03_levels_chapter2") },
 		{ 0, 1, EHLScreen::Playing, true, 4.2f, TEXT("10_level01_traps") },
 		{ 0, 1, EHLScreen::Playing, true, 9.2f, TEXT("10_level01_crate") },
 		{ 0, 4, EHLScreen::Playing, true, 2.4f, TEXT("10_level01_log") },
@@ -127,11 +128,23 @@ namespace
 		{ 8, 5, EHLScreen::Playing, true, 2.9f, TEXT("18_level09_chasm") },
 		{ 9, 3, EHLScreen::Playing, true, 3.0f, TEXT("19_level10") },
 		{ 10, 6, EHLScreen::Playing, true, 3.5f, TEXT("19_level11") },
+		{ 11, 0, EHLScreen::Playing, true, 3.0f, TEXT("40_level12_rope") },
+		{ 12, 0, EHLScreen::Playing, true, 4.2f, TEXT("41_level13_bridge") },
+		{ 13, 0, EHLScreen::Playing, true, 2.4f, TEXT("42_level14_saw") },
+		{ 13, 2, EHLScreen::Playing, true, 2.2f, TEXT("42_level14_hammers") },
+		{ 14, 1, EHLScreen::Playing, true, 7.5f, TEXT("43_level15_flood") },
+		{ 15, 0, EHLScreen::Playing, true, 2.6f, TEXT("44_level16_vents") },
+		{ 15, 2, EHLScreen::Playing, true, 3.4f, TEXT("44_level16_catwalk") },
+		{ 16, 1, EHLScreen::Playing, false, 4.5f, TEXT("45_level17_wolf") },
+		{ 17, 1, EHLScreen::Playing, true, 6.5f, TEXT("46_level18_shaft") },
+		{ 18, 0, EHLScreen::Playing, true, 4.6f, TEXT("47_level19_firebridge") },
+		{ 19, 1, EHLScreen::Playing, true, 7.0f, TEXT("48_level20_pack") },
+		{ 20, 2, EHLScreen::Playing, true, 3.6f, TEXT("49_level21") },
 		{ 2, -1, EHLScreen::Playing, false, 1.6f, TEXT("20_hud_card") },
 		{ 0, 2, EHLScreen::Playing, false, 1.5f, nullptr },
 		{ -1, 0, EHLScreen::Paused, false, 0.6f, TEXT("21_paused") },
 		{ 0, 6, EHLScreen::Playing, false, 9.0f, TEXT("22_complete") },
-		{ 10, 7, EHLScreen::Playing, false, 13.0f, TEXT("23_ending") },
+		{ 20, 5, EHLScreen::Playing, false, 9.5f, TEXT("23_ending") },
 		{ -1, 0, EHLScreen::Settings, false, 0.8f, TEXT("24_settings") },
 		{ -1, 0, EHLScreen::Calibrate, false, 0.8f, TEXT("25_calibrate") },
 		{ 0, 0, EHLScreen::Playing, true, 1.2f, TEXT("30_pose_slide"), (int32)HL::EPose::Slide },
@@ -470,6 +483,6 @@ void AHLPlayerController::TickCapture(float DeltaTime)
 	else
 	{
 		Game.GoTo(S.Screen);
-		if (S.Screen == EHLScreen::LevelSelect) { Game.ReturnScreen = EHLScreen::Title; }
+		if (S.Screen == EHLScreen::LevelSelect) { Game.ReturnScreen = EHLScreen::Title; Game.LevelPage = S.Checkpoint; }
 	}
 }

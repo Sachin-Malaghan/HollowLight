@@ -70,6 +70,81 @@ void UHLAudioSynth::OnUiSound(EHLUiSound Sound)
 	Queue(V);
 }
 
+void UHLAudioSynth::OnCue(EHLCue Cue, float Near, float Pan)
+{
+	const float N = FMath::Clamp(Near, 0.f, 1.f), N2 = N * N;
+	FVoiceSpec V;
+	V.Pan = Pan * 0.7f;
+	switch (Cue)
+	{
+	case EHLCue::SawWhirr:
+		// a blade at speed: a harsh buzz that never quite holds its note
+		V.Tone = 0.5f; V.Saw = 1.f; V.F0 = FMath::FRandRange(205.f, 225.f); V.F1 = V.F0 * 1.04f; V.Vib = 0.07f; V.VibHz = 47.f;
+		V.Noise = 0.7f; V.Cut1 = 0.5f; V.Cut2 = 0.2f; V.Attack = 0.04f; V.Dur = 0.3f; V.Hold = 0.6f; V.Amp = 0.075f * N2; V.Wet = 0.2f;
+		Queue(V);
+		break;
+	case EHLCue::FireCrackle:
+		V.Noise = 1; V.Cut1 = FMath::FRandRange(0.6f, 0.95f); V.Cut2 = 0.3f; V.Dur = FMath::FRandRange(0.012f, 0.04f); V.Amp = FMath::FRandRange(0.03f, 0.11f) * N; V.Wet = 0.1f;
+		V.Pan += FMath::FRandRange(-0.2f, 0.2f);
+		Queue(V);
+		break;
+	case EHLCue::FireRoar:
+		V.Noise = 1; V.Cut1 = 0.05f; V.Cut2 = 0.008f; V.Attack = 0.15f; V.Dur = 0.8f; V.Hold = 0.4f; V.Amp = 0.13f * N; V.Wet = 0.2f;
+		Queue(V);
+		break;
+	case EHLCue::PlankStep:
+		// a hollow knock of wood, and the plank's complaint
+		V.Tone = 1; V.F0 = FMath::FRandRange(220.f, 260.f); V.F1 = 170; V.Harm = 0.5f; V.Dur = 0.09f; V.Amp = 0.12f; Queue(V);
+		V.Tone = 0.5f; V.Saw = 0.8f; V.F0 = 310; V.FMid = FMath::FRandRange(390.f, 450.f); V.F1 = 300; V.Vib = 0.03f; V.VibHz = 31.f; V.Attack = 0.02f; V.Dur = 0.2f; V.Hold = 0.4f; V.Amp = 0.03f;
+		Queue(V);
+		break;
+	case EHLCue::BridgeCreak:
+		// rope taking the strain
+		V.Tone = 0.5f; V.Saw = 0.9f; V.F0 = FMath::FRandRange(130.f, 160.f); V.FMid = V.F0 * 1.3f; V.F1 = V.F0 * 1.05f; V.KMid = 0.4f; V.Vib = 0.04f; V.VibHz = 23.f;
+		V.Attack = 0.06f; V.Dur = 0.55f; V.Hold = 0.5f; V.Amp = 0.04f; V.Wet = 0.3f;
+		Queue(V);
+		break;
+	case EHLCue::WolfPaws:
+		V.Tone = 1; V.F0 = 115; V.F1 = 58; V.Dur = 0.07f; V.Amp = 0.17f * N; Queue(V);
+		V.Tone = 0; V.Noise = 1; V.Cut1 = 0.2f; V.Cut2 = 0.03f; V.Dur = 0.05f; V.Amp = 0.07f * N; Queue(V);
+		break;
+	case EHLCue::WolfGrowl:
+		// breath, then the growl under it
+		V.Noise = 1; V.Cut1 = 0.3f; V.Cut2 = 0.08f; V.Attack = 0.04f; V.Dur = 0.2f; V.Hold = 0.4f; V.Amp = 0.1f * N; Queue(V);
+		V.Noise = 0.3f; V.Tone = 0.6f; V.Saw = 1.f; V.F0 = FMath::FRandRange(135.f, 160.f); V.F1 = 115; V.Vib = 0.06f; V.VibHz = 29.f; V.Attack = 0.05f; V.Dur = 0.55f; V.Hold = 0.5f;
+		V.Amp = 0.085f * N; V.Wet = 0.3f; V.Delay = 0.22f;
+		Queue(V);
+		break;
+	case EHLCue::DogPaws:
+		V.Noise = 1; V.Cut1 = 0.4f; V.Cut2 = 0.1f; V.Dur = 0.03f; V.Amp = 0.04f * N; V.Wet = 0.05f; Queue(V);
+		break;
+	case EHLCue::DogPant:
+		V.Noise = 1; V.Cut1 = 0.36f; V.Cut2 = 0.12f; V.Attack = 0.03f; V.Dur = 0.11f; V.Hold = 0.3f; V.Amp = 0.03f * N; V.Wet = 0.05f; Queue(V);
+		V.Delay = 0.17f; V.Cut1 = 0.28f; V.Amp = 0.022f * N; Queue(V);
+		break;
+	case EHLCue::GhostMoan:
+		V.Tone = 1; V.F0 = FMath::FRandRange(280.f, 330.f); V.FMid = V.F0 * 1.26f; V.F1 = V.F0 * 0.9f; V.KMid = 0.4f; V.Attack = 0.45f; V.Dur = 1.6f; V.Hold = 0.3f;
+		V.Vib = 0.035f; V.VibHz = 4.5f; V.Amp = 0.025f + 0.045f * N; V.Wet = 0.9f;
+		Queue(V);
+		V.F0 *= 1.414f; V.FMid *= 1.414f; V.F1 *= 1.414f; V.Amp *= 0.45f; Queue(V);
+		break;
+	case EHLCue::FloodRush:
+		V.Noise = 1; V.Cut1 = 0.11f; V.Cut2 = 0.01f; V.Attack = 0.4f; V.Dur = 1.7f; V.Hold = 0.4f; V.Amp = 0.15f * N; V.Wet = 0.35f; Queue(V);
+		V.Noise = 0; V.Tone = 1; V.F0 = FMath::FRandRange(280.f, 420.f); V.F1 = V.F0 * 1.9f; V.Attack = 0.004f; V.Dur = 0.07f; V.Hold = 0; V.Amp = 0.035f * N; V.Delay = FMath::FRandRange(0.f, 0.6f);
+		Queue(V);   // a bubble
+		break;
+	case EHLCue::Ratchet:
+		V.Noise = 1; V.Cut1 = 0.9f; V.Cut2 = 0.4f; V.Dur = 0.02f; V.Amp = 0.09f * N2; Queue(V);
+		V.Noise = 0; V.Tone = 1; V.F0 = 900; V.F1 = 860; V.Harm = 0.5f; V.Dur = 0.05f; V.Amp = 0.015f * N2; Queue(V);
+		break;
+	case EHLCue::Scree:
+		V.Noise = 1; V.Cut1 = FMath::FRandRange(0.2f, 0.35f); V.Cut2 = 0.03f; V.Attack = 0.02f; V.Dur = 0.22f; V.Amp = 0.1f; Queue(V);
+		break;
+	default:
+		break;
+	}
+}
+
 void UHLAudioSynth::OnThunder(float Strength, float Delay)
 {
 	FVoiceSpec V;
@@ -260,6 +335,30 @@ void UHLAudioSynth::OnSimEvent(const HL::FEvent& E, float Pan, float Distance)
 			FVoiceSpec N = V; N.Delay = 0.07f * I; N.Tone = 1; N.F0 = N.F1 = 1318.5f * Mult[I]; N.Harm = 0.4f; N.Dur = 1.5f; N.Amp = 0.04f; N.Wet = 0.65f; Queue(N);
 		}
 		break;
+	case EEvent::Crush:
+		V.Tone = 1; V.F0 = 70; V.F1 = 34; V.Dur = 0.35f; V.Amp = 0.38f * Near * Near; V.Wet = 0.35f; Queue(V);
+		V.Tone = 0; V.Noise = 1; V.Cut1 = 0.6f; V.Cut2 = 0.1f; V.Dur = 0.07f; V.Amp = 0.3f * Near * Near; Queue(V);
+		V.Noise = 0; V.Tone = 1; V.F0 = 1480; V.F1 = 1440; V.Harm = 0.6f; V.Dur = 0.5f; V.Amp = 0.03f * Near * Near; V.Wet = 0.5f; Queue(V);   // the ring of iron
+		break;
+	case EEvent::FireOn:
+		V.Noise = 1; V.Cut1 = 0.22f; V.Cut2 = 0.02f; V.Attack = 0.05f; V.Dur = 0.9f; V.Hold = 0.4f; V.Amp = 0.16f * Near * Near; V.Wet = 0.2f; Queue(V);
+		V.Noise = 0; V.Tone = 1; V.F0 = 90; V.F1 = 140; V.Attack = 0.04f; V.Dur = 0.5f; V.Amp = 0.08f * Near * Near; Queue(V);
+		break;
+	case EEvent::FloodStart:
+		// a valve gives way somewhere below: a groan of iron, then the rush
+		V.Tone = 1; V.F0 = 110; V.F1 = 62; V.Harm = 0.7f; V.Saw = 0.5f; V.Attack = 0.1f; V.Dur = 1.4f; V.Hold = 0.3f; V.Amp = 0.12f; V.Wet = 0.6f; Queue(V);
+		V.Tone = 0; V.Saw = 0; V.Noise = 1; V.Cut1 = 0.12f; V.Cut2 = 0.008f; V.Attack = 0.8f; V.Dur = 6.0f; V.Hold = 0.6f; V.Amp = 0.2f; V.Wet = 0.4f; V.Delay = 0.5f; Queue(V);
+		break;
+	case EEvent::WolfHowl:
+		// a howl from behind: up, held, falling away
+		V.Tone = 1; V.Saw = 0.35f; V.F0 = 330; V.FMid = 560; V.F1 = 420; V.KMid = 0.25f; V.Attack = 0.25f; V.Dur = 2.2f; V.Hold = 0.55f; V.Vib = 0.012f; V.VibHz = 5.f;
+		V.Amp = 0.07f; V.Wet = 0.85f; Queue(V);
+		V.Tone = 0; V.Saw = 0; V.Vib = 0; V.FMid = 0; V.Noise = 1; V.Cut1 = 0.06f; V.Cut2 = 0.01f; V.Attack = 0.02f; V.Dur = 0.5f; V.Hold = 0; V.Amp = 0.12f; Queue(V);   // and the snarl up close
+		break;
+	case EEvent::WolfGiveUp:
+		V.Tone = 0.6f; V.Saw = 0.9f; V.F0 = 190; V.F1 = 120; V.Attack = 0.03f; V.Dur = 0.7f; V.Hold = 0.4f; V.Vib = 0.05f; V.VibHz = 28.f; V.Noise = 0.5f; V.Cut1 = 0.2f; V.Cut2 = 0.03f;
+		V.Amp = 0.1f * Near; V.Wet = 0.4f; Queue(V);   // a growl of frustration
+		break;
 	case EEvent::GhostAppear:
 		// Two voices a tritone apart, swelling out of nothing, and a cold breath under them.
 		V.Tone = 1; V.Attack = 0.9f; V.Dur = 2.8f; V.Hold = 0.3f; V.Vib = 0.03f; V.VibHz = 4.0f; V.Wet = 0.9f;
@@ -272,6 +371,14 @@ void UHLAudioSynth::OnSimEvent(const HL::FEvent& E, float Pan, float Distance)
 		V.Tone = 0; V.Vib = 0; V.Noise = 1; V.Cut1 = 0.25f; V.Cut2 = 0.06f; V.Attack = 0.05f; V.Dur = 0.6f; V.Amp = 0.09f; V.Wet = 0.5f; Queue(V);
 		break;
 	case EEvent::LadderStep:
+		if (S > 1.5f)
+		{
+			// a rope: a hand taking hold, the fibres creaking, the pulley answering above
+			V.Noise = 1; V.Cut1 = 0.3f; V.Cut2 = 0.06f; V.Dur = 0.05f; V.Amp = 0.06f; Queue(V);
+			V.Noise = 0; V.Tone = 0.5f; V.Saw = 0.9f; V.F0 = 170; V.FMid = 215; V.F1 = 160; V.Vib = 0.04f; V.VibHz = 24.f; V.Attack = 0.03f; V.Dur = 0.3f; V.Hold = 0.4f; V.Amp = 0.035f; Queue(V);
+			V.Saw = 0; V.Tone = 1; V.Vib = 0; V.FMid = 0; V.F0 = 1150; V.F1 = 1320; V.Attack = 0.02f; V.Dur = 0.12f; V.Hold = 0.3f; V.Amp = 0.008f; V.Wet = 0.4f; V.Delay = 0.08f; Queue(V);
+			break;
+		}
 		V.Tone = 1; V.F0 = 310; V.F1 = 240; V.Harm = 0.4f; V.Dur = 0.06f; V.Amp = 0.06f; Queue(V);
 		V.Tone = 0; V.Noise = 1; V.Cut1 = 0.25f; V.Cut2 = 0.05f; V.Dur = 0.04f; V.Amp = 0.05f; Queue(V);
 		break;

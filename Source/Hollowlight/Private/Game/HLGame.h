@@ -17,10 +17,18 @@ enum class EHLAction : uint8
 {
 	None, Play, Levels, Settings, Credits, Back, SelectLevel, Resume, RestartCheckpoint, RestartLevel,
 	QuitToTitle, NextLevel, Replay, ToggleMusic, ToggleSound, CycleTouch, ToggleGrain, ToggleFlashing,
-	Pause, PlayAgain, Quit, PrivacyPolicy, Calibrate, SkipCalibrate, ToggleTimer
+	Pause, PlayAgain, Quit, PrivacyPolicy, Calibrate, SkipCalibrate, ToggleTimer, PageLevels
 };
 
 enum class EHLUiSound : uint8 { Move, Select, Back };
+
+// Sounds of things that are simply going on near the child (a blade turning, a fire burning, a wolf's
+// feet), as opposed to things that happen once (those are sim events). FHLGame decides when; the synth how.
+enum class EHLCue : uint8
+{
+	SawWhirr, FireCrackle, FireRoar, PlankStep, BridgeCreak, WolfPaws, WolfGrowl, DogPaws, DogPant, GhostMoan,
+	FloodRush, Ratchet, Scree, Count
+};
 
 struct FHLControls
 {
@@ -67,6 +75,7 @@ public:
 	virtual ~IHLAudioSink() = default;
 	virtual void OnSimEvent(const HL::FEvent& Event, float Pan, float Distance) = 0;
 	virtual void OnUiSound(EHLUiSound Sound) = 0;
+	virtual void OnCue(EHLCue Cue, float Near, float Pan) = 0;   // Near: 1 = right here, 0 = out of earshot
 	virtual void OnThunder(float Strength, float Delay) = 0;
 	virtual void SetMix(float Rain, float Wind, bool bMusic, bool bSound, bool bPausedOrMenu, float Warmth) = 0;
 };
@@ -102,6 +111,9 @@ public:
 	EHLScreen Screen = EHLScreen::Title;
 	EHLScreen ReturnScreen = EHLScreen::Title;   // where Back from Settings goes
 	int32 LevelIndex = 0;
+	int32 LevelPage = 0;         // which chapter the level select is showing
+	static constexpr int32 kChapterSize = 11;
+	int32 NumChapters() const { return (NumLevels() + kChapterSize - 1) / kChapterSize; }
 	bool bAttract = true;
 	HL::FSim Sim;
 	HL::FAutopilot Pilot;
@@ -152,6 +164,9 @@ private:
 	FString WantedNote() const;
 	void Burst(double X, double Y, int32 Count, double Speed, double Up, double Size, double Life, float Grey, float Alpha, double Gravity, bool bGrow, bool bWarm = false);
 	void OnEventJuice(const HL::FEvent& E);
+	void TickAmbient(double Dt);
+	void Cue(EHLCue C, double X, double Range, double Every);
+	double CueTimer[(int32)EHLCue::Count] = {};
 	double LandStamp = -10, LandStrength = 0, JumpStamp = -10, PushDust = 0;
 
 	IHLAudioSink* Audio = nullptr;

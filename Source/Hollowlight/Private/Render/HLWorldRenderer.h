@@ -53,6 +53,11 @@ private:
 	void DrawSlopes(FHLDraw& D, const FHLRenderView& V);
 	void DrawMechanisms(FHLDraw& D, const FHLRenderView& V);
 	void DrawDog(FHLDraw& D, const FHLRenderView& V);
+	void DrawCanine(FHLDraw& D, const FHLRenderView& V, const HL::FDog& G, double BaseSize, bool bWolf);
+	void DrawChasers(FHLDraw& D, const FHLRenderView& V);
+	void DrawHazards(FHLDraw& D, const FHLRenderView& V);
+	void DrawFloods(FHLDraw& D, const FHLRenderView& V);
+	void DrawBridges(FHLDraw& D, const FHLRenderView& V);
 	void DrawGhost(FHLDraw& D, const FHLRenderView& V);
 	void DrawParticles(FHLDraw& D, const FHLRenderView& V);
 	void DrawMist(FHLDraw& D, const FHLRenderView& V);

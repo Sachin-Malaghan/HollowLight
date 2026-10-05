@@ -17,13 +17,13 @@ namespace HL
 	struct FTrapDef { double X; };                             // centre; rests on the surface below it
 	struct FLogDef { double X, PivotY, Rope, Amp, Period, Phase; };
 	// Moving bough: its top-centre travels A <-> B with an eased cosine over Period seconds.
-	struct FPlatformDef { double AX, AY, BX, BY, Width, Period, Phase; };
-	struct FCrumbleDef { double X0, X1, Top; };                // rotten branch: gives way shortly after you stand on it
+	struct FPlatformDef { double AX, AY, BX, BY, Width, Period, Phase; int Style = 0; };   // Style 1: a plank of a rope bridge
+	struct FCrumbleDef { double X0, X1, Top; bool bPlank = false; };                // rotten branch: gives way shortly after you stand on it
 	struct FWaterDef { double X0, X1, Surface; };              // deadly to the child; crates float
 
 	// --- 2.0: terrain, things to operate, the dog -------------------------------------------------
 	struct FSlopeDef { double X0, Y0, X1, Y1; bool bScree = false; };   // drawn hillside; collision is the bStep grounds under it
-	struct FLadderDef { double X, Top, Bottom; };              // hold jump to climb, down to descend; Top is a surface
+	struct FLadderDef { double X, Top, Bottom; bool bRope = false; };   // bRope: a rope hung from a pulley, climbed the same way              // hold jump to climb, down to descend; Top is a surface
 	// A door: solid while shut, slides up when open. With bBridge it is a drawbridge deck instead:
 	// raised (and not solid) until opened, then it lowers and can be walked on.
 	struct FGateDef { double X0, Y0, X1, Y1; bool bStartOpen = false; bool bBridge = false; };
@@ -38,6 +38,22 @@ namespace HL
 	// If the child dithers inside [X0, X1] while gate UntilGate is still shut, the dog runs to PointX and
 	// barks at it: a nudge toward the next step, never the whole answer.
 	struct FHintDef { double X0, X1, PointX; int UntilGate; };
+
+	// --- Chapter two: machines, fire, rising water, a hunter ------------------------------------------
+	// A deadly thing on a clock. None of them is solid; touching one kills.
+	//   Crusher: the box is the raised head; it slams down by Travel and climbs back, once a Period.
+	//   Saw:     the box is the blade at one end of its rail; it slides Travel along x and back.
+	//   Fire:    the box is the flame; it burns for Duty of each Period (Period 0: always).
+	enum class EHazard : uint8_t { Crusher, Saw, Fire };
+	struct FHazardDef { EHazard Kind; double X0, Y0, X1, Y1; double Travel = 0; double Period = 0; double Phase = 0; double Duty = 1; };
+	// Water that starts rising (from StartY to EndY, at Speed) once the child passes TriggerX. Standing
+	// more than 10 below its surface between X0 and X1 drowns. It drains again when the child respawns.
+	struct FFloodDef { double X0, X1, StartY, EndY, Speed, TriggerX; };
+	// A wolf: when the child passes TriggerX it bursts out at StartX and runs the child down at Speed. It
+	// gives up at EndX - put something there it cannot follow up (a rope, a ledge).
+	struct FChaserDef { double TriggerX, StartX, EndX; double Speed = 240.0; };
+	// Posts and ropes of a hanging bridge (drawing only: the planks are platforms and crumbles).
+	struct FBridgeDef { double X0, X1, Y; };
 
 	// An ember: an optional glowing thing to collect, three to a level, each a little out of the way.
 	// It is taken when it comes within 12 of the child's body.
@@ -105,6 +121,10 @@ namespace HL
 		bool bGhost = false;         // linger here and something comes for the light; the dog can see it off
 		std::vector<FNoteDef> Notes;
 		std::vector<FEmberDef> Embers;
+		std::vector<FHazardDef> Hazards;
+		std::vector<FFloodDef> Floods;
+		std::vector<FChaserDef> Chasers;
+		std::vector<FBridgeDef> Bridges;
 		FTheme Theme;
 	};
 

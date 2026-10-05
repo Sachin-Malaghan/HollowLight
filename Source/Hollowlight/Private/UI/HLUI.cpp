@@ -27,10 +27,16 @@ namespace
 		return C;
 	}
 
-	const TCHAR* Roman(int32 N)
+	FString Roman(int32 N)
 	{
-		static const TCHAR* R[] = { TEXT("I"), TEXT("II"), TEXT("III"), TEXT("IV"), TEXT("V"), TEXT("VI"), TEXT("VII"), TEXT("VIII"), TEXT("IX"), TEXT("X"), TEXT("XI"), TEXT("XII") };
-		return (N >= 1 && N <= 12) ? R[N - 1] : TEXT("");
+		static const int32 Val[] = { 50, 40, 10, 9, 5, 4, 1 };
+		static const TCHAR* Sym[] = { TEXT("L"), TEXT("XL"), TEXT("X"), TEXT("IX"), TEXT("V"), TEXT("IV"), TEXT("I") };
+		FString Out;
+		for (int32 I = 0; I < 7 && N > 0; ++I)
+		{
+			while (N >= Val[I]) { Out += Sym[I]; N -= Val[I]; }
+		}
+		return Out;
 	}
 
 	FString FormatTime(double Seconds)
@@ -344,7 +350,7 @@ namespace
 		{
 			const int32 Cairns = (int32)GetLevels()[G.Save->LastLevel].Checkpoints.size();
 			const FString At = G.Save->LastCheckpoint >= 0 ? FString::Printf(TEXT("cairn %d of %d"), G.Save->LastCheckpoint + 1, Cairns) : FString(TEXT("from the start"));
-			const FString Where = FString::Printf(TEXT("%s  ·  %s  ·  %s  ·  %d of %d lights home"), Roman(G.Save->LastLevel + 1),
+			const FString Where = FString::Printf(TEXT("%s  ·  %s  ·  %s  ·  %d of %d lights home"), *Roman(G.Save->LastLevel + 1),
 				UTF8_TO_TCHAR(GetLevels()[G.Save->LastLevel].Name.c_str()), *At, G.NumCleared(), G.NumLevels());
 			S.Text.Draw(Where, S.W * 0.5, Y0 + S.H * 0.045, S.H * 0.02, WithAlpha(Faint, In), 0.5, 200);
 		}
@@ -425,6 +431,66 @@ namespace
 			S.D.Glow(X0 + 0.3 * W, Y0 + 0.38 * H, 0.16 * H, FLinearColor(0.8f * (float)In, 0.5f * (float)In, 0.16f * (float)In, 1), FLinearColor(0, 0, 0, 1), 14);
 			S.D.SetBlend(SE_BLEND_Translucent);
 			break;
+		case 11:  // the quarry: a rock face and a rope from a pulley
+			R(0.5, 0.25, 1, Gd, K); R(0.40, 0.12, 0.415, Gd - 0.02, K); R(0.40, 0.10, 0.56, 0.13, K);
+			S.D.Circle(X0 + 0.41 * W, Y0 + 0.16 * H, 0.05 * H, K, 12);
+			break;
+		case 12:  // the rope bridge
+			R(0, 0.55, 0.2, 1, K); R(0.8, 0.55, 1, 1, K); R(0.18, 0.3, 0.2, 0.6, K); R(0.8, 0.3, 0.82, 0.6, K);
+			for (int32 I = 0; I < 6; ++I) { if (I != 3) { R(0.22 + I * 0.1, 0.56, 0.3 + I * 0.1, 0.6, K); } }
+			R(0.2, 0.40, 0.8, 0.415, K);
+			break;
+		case 13:  // the sawmill: a blade in the floor, a hammer above
+			S.D.Circle(X0 + 0.32 * W, Y0 + Gd * H, 0.16 * H, K, 16);
+			for (int32 I = 0; I < 7; ++I)
+			{
+				const double A = PI + I * (PI / 6.0);
+				T(0.32 + FMath::Cos(A - 0.12) * 0.16 * H / W, Gd + FMath::Sin(A - 0.12) * 0.16, 0.32 + FMath::Cos(A + 0.12) * 0.16 * H / W, Gd + FMath::Sin(A + 0.12) * 0.16,
+				  0.32 + FMath::Cos(A) * 0.22 * H / W, Gd + FMath::Sin(A) * 0.22, K);
+			}
+			R(0.66, 0, 0.70, 0.3, K); R(0.58, 0.3, 0.78, 0.52, K);
+			break;
+		case 14:  // the cistern: water coming up the steps
+			R(0, 0.5, 0.3, Gd, K); R(0.3, 0.62, 0.6, Gd, K); R(0.6, 0.74, 1, Gd, K);
+			R(0.3, 0.60, 1, 0.615, G); R(0.6, 0.66, 1, 0.672, G);
+			break;
+		case 15:  // the foundry: fire from a vent
+		case 18:  // the burning mill
+			if (Index == 18) { R(0.52, 0.34, 0.9, Gd, K); T(0.47, 0.34, 0.95, 0.34, 0.71, 0.12, K); }
+			else { R(0.1, 0.1, 0.9, 0.16, K); R(0.14, 0.16, 0.17, Gd, K); R(0.83, 0.16, 0.86, Gd, K); }
+			S.D.SetBlend(SE_BLEND_Additive);
+			{
+				const FLinearColor Fl(0.9f * (float)In, 0.5f * (float)In, 0.14f * (float)In, 1);
+				const double FX = Index == 18 ? 0.28 : 0.5;
+				T(FX - 0.09, Gd, FX + 0.09, Gd, FX + 0.01, 0.3, Fl); T(FX - 0.16, Gd, FX - 0.02, Gd, FX - 0.1, 0.5, Fl); T(FX + 0.03, Gd, FX + 0.16, Gd, FX + 0.11, 0.46, Fl);
+				S.D.Glow(X0 + FX * W, Y0 + 0.6 * H, 0.3 * H, FLinearColor(0.35f * (float)In, 0.2f * (float)In, 0.06f * (float)In, 1), FLinearColor(0, 0, 0, 1), 14);
+			}
+			S.D.SetBlend(SE_BLEND_Translucent);
+			break;
+		case 16:  // wolf wood
+		case 19:  // the pack
+			if (Index == 16) { R(0.06, 0, 0.14, Gd, K); R(0.88, 0, 0.94, Gd, K); } else { T(0.5, Gd, 1, Gd, 0.8, 0.2, K); }
+			for (int32 Wn = 0; Wn < (Index == 19 ? 2 : 1); ++Wn)
+			{
+				const double O = Wn * 0.26 - (Index == 19 ? 0.16 : 0.0);
+				R(0.34 + O, 0.60, 0.56 + O, 0.70, K); R(0.54 + O, 0.50, 0.64 + O, 0.62, K); T(0.62 + O, 0.54, 0.62 + O, 0.60, 0.72 + O, 0.60, K);
+				T(0.55 + O, 0.50, 0.59 + O, 0.50, 0.56 + O, 0.42, K); T(0.34 + O, 0.60, 0.34 + O, 0.65, 0.24 + O, 0.70, K);
+				R(0.36 + O, 0.70, 0.385 + O, Gd, K); R(0.52 + O, 0.70, 0.545 + O, Gd, K);
+				S.D.Circle(X0 + (0.60 + O) * W, Y0 + 0.545 * H, 0.012 * H, FLinearColor(1, 1, 1, (float)(0.9 * In)), 6);
+			}
+			break;
+		case 17:  // the pump house: a shaft, a rope, water at the bottom
+			R(0.2, 0, 0.26, Gd, K); R(0.74, 0, 0.8, Gd, K); R(0.26, 0.4, 0.5, 0.44, K); R(0.5, 0.2, 0.74, 0.24, K);
+			R(0.47, 0, 0.485, 0.4, K); R(0.26, 0.7, 0.74, Gd, K); R(0.26, 0.69, 0.74, 0.705, G);
+			break;
+		case 20:  // first light: a low sun behind another village
+			S.D.SetBlend(SE_BLEND_Additive);
+			S.D.Glow(X0 + 0.5 * W, Y0 + Gd * H, 0.42 * H, FLinearColor(0.5f * (float)In, 0.32f * (float)In, 0.12f * (float)In, 1), FLinearColor(0, 0, 0, 1), 18);
+			S.D.SetBlend(SE_BLEND_Translucent);
+			R(0.16, 0.56, 0.4, Gd, K); T(0.12, 0.56, 0.44, 0.56, 0.28, 0.36, K);
+			R(0.6, 0.62, 0.84, Gd, K); T(0.56, 0.62, 0.88, 0.62, 0.72, 0.44, K);
+			R(0, Gd, 1, 1, K);
+			break;
 		default:
 			break;
 		}
@@ -441,7 +507,9 @@ namespace
 		FHLGame& G = S.Game;
 		const double In = SmoothStep(0.0, 0.35, G.ScreenTime);
 		S.Darken(0.62 * In);
-		S.Text.Draw(TEXT("LEVELS"), S.W * 0.5, S.H * 0.13, S.H * 0.042, WithAlpha(Ink, In), 0.5, 500);
+		const int32 Page = FMath::Clamp(G.LevelPage, 0, G.NumChapters() - 1);
+		static const TCHAR* ChapterNames[] = { TEXT("CHAPTER I   ·   THE WAY HOME"), TEXT("CHAPTER II   ·   THE LONG DARK") };
+		S.Text.Draw(Page < 2 ? ChapterNames[Page] : TEXT("LEVELS"), S.W * 0.5, S.H * 0.13, S.H * 0.036, WithAlpha(Ink, In), 0.5, 400);
 
 		const int32 N = G.NumLevels();
 		FString Tally = FString::Printf(TEXT("%d of %d lights brought home   ·   %d of %d embers"), G.NumCleared(), N, G.EmbersFound(), G.EmbersTotal());
@@ -451,9 +519,10 @@ namespace
 		const double GridW = FMath::Min(S.W - S.SafeL() - S.SafeR() - S.H * 0.2, S.H * 1.75);
 		const double CellW = GridW / Cols, CellH = S.H * 0.27;
 		const double X0 = S.W * 0.5 - GridW * 0.5, Y0 = S.H * 0.25;
-		for (int32 I = 0; I < N; ++I)
+		const int32 First = Page * FHLGame::kChapterSize, Last = FMath::Min(N, First + FHLGame::kChapterSize);
+		for (int32 I = First; I < Last; ++I)
 		{
-			const int32 R = I / Cols, C = I % Cols;
+			const int32 R = (I - First) / Cols, C = (I - First) % Cols;
 			const double CX = X0 + CellW * (C + 0.5), CY = Y0 + CellH * (R + 0.5);
 			const bool bOpen = I < G.Save->UnlockedLevels;
 			FHLButton B;
@@ -517,6 +586,13 @@ namespace
 				S.D.Glow(Bx.Max.X - CellW * 0.08, Bx.Min.Y + CellH * 0.1, S.H * 0.012, FLinearColor(0.9f, 0.55f, 0.18f, 1), FLinearColor(0, 0, 0, 1), 10);
 				S.D.SetBlend(SE_BLEND_Translucent);
 			}
+		}
+		// Turn the page to the other chapter.
+		if (G.NumChapters() > 1)
+		{
+			const double BY = Y0 + CellH * 2.0 + S.H * 0.075;
+			S.Button(TEXT("‹  CHAPTER I"), S.W * 0.5 - S.H * 0.3, BY, S.H * 0.026, EHLAction::PageLevels, -1, Page > 0, In * (Page > 0 ? 1.0 : 0.3));
+			S.Button(TEXT("CHAPTER II  ›"), S.W * 0.5 + S.H * 0.3, BY, S.H * 0.026, EHLAction::PageLevels, 1, Page < G.NumChapters() - 1, In * (Page < G.NumChapters() - 1 ? 1.0 : 0.3));
 		}
 		DrawBack(S, In);
 	}
@@ -602,7 +678,7 @@ namespace
 		const double In = SmoothStep(0.0, 0.25, G.ScreenTime);
 		S.Darken(0.62 * In);
 		S.Text.Draw(TEXT("PAUSED"), S.W * 0.5, S.H * 0.17, S.H * 0.045, WithAlpha(Ink, In), 0.5, 600);
-		S.Text.Draw(FString::Printf(TEXT("%s  ·  %s"), Roman(G.LevelIndex + 1), UTF8_TO_TCHAR(G.CurrentLevel().Name.c_str())),
+		S.Text.Draw(FString::Printf(TEXT("%s  ·  %s"), *Roman(G.LevelIndex + 1), UTF8_TO_TCHAR(G.CurrentLevel().Name.c_str())),
 			S.W * 0.5, S.H * 0.24, S.H * 0.024, WithAlpha(Dim, In), 0.5, 200);
 		const double Px = S.H * 0.032, Step = S.H * 0.09, Y = S.H * 0.36;
 		S.Button(TEXT("RESUME"), S.W * 0.5, Y, Px, EHLAction::Resume, 0, true, In);
@@ -624,7 +700,7 @@ namespace
 		{
 			S.Text.Draw(TEXT("thank you for carrying it"), S.W * 0.5, Y + S.H * 0.075, S.H * 0.026, WithAlpha(Dim, In), 0.5, 300);
 		}
-		FString Stats = FString::Printf(TEXT("%s  ·  %s   ·   time %s   ·   %d %s   ·   embers %d of %d"), Roman(G.LevelIndex + 1),
+		FString Stats = FString::Printf(TEXT("%s  ·  %s   ·   time %s   ·   %d %s   ·   embers %d of %d"), *Roman(G.LevelIndex + 1),
 			UTF8_TO_TCHAR(G.CurrentLevel().Name.c_str()), *FormatClock(G.ResultTime), G.ResultDeaths, G.ResultDeaths == 1 ? TEXT("fall") : TEXT("falls"),
 			G.Sim.EmbersTaken(), (int32)G.Sim.EmberTaken.size());
 		S.Text.Draw(Stats, S.W * 0.5, Y + S.H * (bEnding ? 0.14 : 0.09), S.H * 0.023, WithAlpha(Dim, In), 0.5, 120);

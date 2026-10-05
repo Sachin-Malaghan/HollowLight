@@ -6,7 +6,7 @@ Read this file in full before changing anything. It is the standing spec for the
 
 A side-scrolling puzzle-platformer in Unreal Engine 5.8 (C++), for Android, iOS and Windows, with a
 static marketing website. A small child in a scarf carries a lantern through a grey, rainy forest;
-the lantern is the only warm colour in the world. Eleven levels; reach the lamp post to "bring the light home".
+the lantern is the only warm colour in the world. Twenty-one levels in two chapters; reach the lamp post to "bring the light home".
 
 **Names.** The game is called **EMBERHOME** (renamed from HOLLOWLIGHT on 2026-09-29 because that name
 was already taken on Google Play and the App Store). Everything players see says EMBERHOME; the app id is
@@ -229,9 +229,44 @@ select. The clock and the falls are saved with the cairn (`LastTime`, `LastDeath
 to the background, so a resumed run keeps an honest time. It resumes at the cairn, not the exact spot: puzzle
 state between cairns is not saved, which is why checkpoints must be clean cuts.
 
+## Chapter two (asked for 2026-10-05): levels 12-21, "The Long Dark"
+
+The user asked for ten more levels with new hurdles. All are level data plus small sim pieces; every level
+passes the autopilot from every cairn.
+
+| # | Name | What it is |
+|---|---|---|
+| 12 | The Quarry | rock faces too high for ledges: ropes hung from pulleys (`FLadderDef::bRope`) |
+| 13 | The Rope Bridge | hanging bridges (`AddBridge`): planks missing, planks rotten |
+| 14 | The Sawmill | blades running in the floor, hammers falling from the roof |
+| 15 | The Cistern | step in and the water starts to rise; on and up, over hurdles |
+| 16 | The Foundry | fire vents on a beat, fires to jump, a burning floor crossed by a catwalk |
+| 17 | Wolf Wood | a wolf runs the child down; hurdles at a sprint, a rope at the end |
+| 18 | The Pump House | hammers, then a shaft that fills from below: ropes and ledges upward, scree down |
+| 19 | The Burning Mill | bridges over fire, vents, a blade, a hammer, low fires on the roof walk |
+| 20 | The Pack | a long chase down the mountain: pit, boulder, trunk, scree, bridge, rope |
+| 21 | First Light | a little of everything, gently; a second village at dawn (the ending) |
+
+- **Hazards** (`FHazardDef`, `FSim::HazardBox/HazardActive`): Crusher, Saw, Fire. Deadly, never solid, on a
+  clock. The autopilot jumps low ones on the floor like traps and waits out tall ones by look-ahead.
+- **Floods** (`FFloodDef`): start rising when the child passes `TriggerX`; drain on respawn.
+- **Chasers** (`FChaserDef`): the wolf appears behind at `StartX`, runs at `Speed` (238-242: faster than a
+  run, slower than a sprint), gives up at `EndX`. No timed hazards inside a chase or a flood - the autopilot
+  would stop for them. Test `Hollowlight.Dangers.*` checks that stopping is fatal.
+- **Bridges**: sound planks are static `FPlatformDef` (Style 1), rotten ones `FCrumbleDef::bPlank`; collision
+  is flat (one-way planks cannot be stepped up), only the ropes sag.
+- Fire is drawn in the light pass in the lantern's colour: the only other warm thing in the world.
+- Level select is paged by chapter (`FHLGame::LevelPage`, 11 per page); finishing level 21 is the ending.
+
+**Sounds of things going on (asked for 2026-10-05):** `EHLCue` / `FHLGame::TickAmbient` / `UHLAudioSynth::OnCue` -
+a saw's whirr, fire crackle and roar, a hammer ratcheting back up, plank knocks and rope creaks on a bridge, the
+wolf's paws and growl, the dog's patter and panting, the ghost's moan, the rush of rising water, scree. Each is
+re-fired on a timer while its source is within earshot, louder the nearer it is. One-off happenings stay sim
+events (`OnSimEvent`): hammer slam, vent lighting, flood starting, howl, whistle, bark, rope/ladder steps.
+
 ## Checklist
 
-- [x] Core sim, eleven levels, autopilot; harness + automation tests green
+- [x] Core sim, twenty-one levels, autopilot; harness + automation tests green
 - [x] Renderer, UI, audio, save, input (keyboard, gamepad, mouse, touch)
 - [x] Windows Shipping package runs end-to-end
 - [x] Icons, website, privacy policy, store listing copy (`STORE_LISTING.md`)

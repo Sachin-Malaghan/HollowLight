@@ -27,6 +27,6 @@ Convert-Shot 'desktop_01_title' 'og.jpg' 1200
 Convert-Shot 'desktop_01_title' 'title.jpg' 1600
 Convert-Shot 'desktop_23_ending' 'ending.jpg' 1600
 Convert-Shot 'phone_20_hud_card' 'phone.jpg' 1560
-$levels = @('10_level01_log', '11_level02_slope', '12_level03', '13_level04_ladder', '14_level05', '15_level06_racking', '16_level07_wagon', '17_level08_barriers', '18_level09_chasm', '19_level10', '19_level11')
+$levels = @('10_level01_log', '11_level02_slope', '12_level03', '13_level04_ladder', '14_level05', '15_level06_racking', '16_level07_wagon', '17_level08_barriers', '18_level09_chasm', '19_level10', '19_level11', '40_level12_rope', '41_level13_bridge', '42_level14_hammers', '43_level15_flood', '44_level16_catwalk', '45_level17_wolf', '46_level18_shaft', '47_level19_firebridge', '48_level20_pack', '49_level21')
 for ($i = 0; $i -lt $levels.Count; $i++) { Convert-Shot ("desktop_" + $levels[$i]) ('level{0:D2}.jpg' -f ($i + 1)) 800 }
 Get-ChildItem $dst | Select-Object Name, @{ n = 'KB'; e = { [math]::Round($_.Length / 1KB) } }

@@ -3,7 +3,7 @@
 A small child in a scarf carries a lantern through a grey, rainy forest. The lantern is the only warm
 colour in the world. Reach the lamp post at the end of each level to bring the light home.
 
-Eleven levels · Unreal Engine 5.8 · C++ · Android, iOS, Windows · everything drawn and sounded procedurally.
+Twenty-one levels · Unreal Engine 5.8 · C++ · Android, iOS, Windows · everything drawn and sounded procedurally.
 
 - **Play (Windows):** `Tools\Build\package.ps1 -Platform Win64`, then run `Packaged\Win64\Hollowlight.exe`.
 - **Build for phones, release, website:** see [SETUP.md](SETUP.md).

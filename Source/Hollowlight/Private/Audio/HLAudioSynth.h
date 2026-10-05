@@ -22,6 +22,7 @@ public:
 	// IHLAudioSink (game thread)
 	virtual void OnSimEvent(const HL::FEvent& Event, float Pan, float Distance) override;
 	virtual void OnUiSound(EHLUiSound Sound) override;
+	virtual void OnCue(EHLCue Cue, float Near, float Pan) override;
 	virtual void OnThunder(float Strength, float Delay) override;
 	virtual void SetMix(float Rain, float Wind, bool bMusic, bool bSound, bool bMenu, float Warmth) override;
 

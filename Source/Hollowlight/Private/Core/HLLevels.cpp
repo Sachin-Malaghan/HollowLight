@@ -40,6 +40,20 @@ namespace HL
 			L.Slopes.back().bScree = true;
 		}
 
+		// A hanging bridge from X0, at height Y: one letter per 40-wide plank. S = sound, R = rotten (it
+		// gives way a moment after you stand on it, and comes back later), _ = missing.
+		void AddBridge(FLevelDef& L, double X0, double Y, const char* Planks)
+		{
+			int N = 0;
+			for (; Planks[N] != 0; ++N)
+			{
+				const double A = X0 + N * 40.0;
+				if (Planks[N] == 'S') { L.Platforms.push_back({ A + 20.0, Y, A + 20.0, Y, 40.0, 1.0, 0.0, 1 }); }
+				else if (Planks[N] == 'R') { L.Crumbles.push_back({ A, A + 40.0, Y, true }); }
+			}
+			L.Bridges.push_back({ X0, X0 + N * 40.0, Y });
+		}
+
 		FSolveStep Go(double X) { return { EStepKind::Go, X }; }
 		FSolveStep GoOn(double X, double FloorY) { return { EStepKind::Go, X, FloorY }; }
 		FSolveStep Act() { return { EStepKind::Act }; }
@@ -417,6 +431,342 @@ namespace HL
 				L.Checkpoints = { 150, 940, 1720, 2420, 3430, 4520, 5520, 6300 };
 				L.Theme.Seed = 101;
 				L.Theme.Rain = 0.4;
+				L.Theme.Fog = 1.1;
+				L.Theme.Dawn = 1.0;
+				Levels.push_back(L);
+			}
+
+			// =====================================================================================
+			// CHAPTER TWO - the road beyond the village. Ropes and pulleys, hanging bridges, machines,
+			// fire, rising water, and something that hunts.
+
+			// 12 -----------------------------------------------------------------------------------
+			// A quarry: rock faces too high to climb by the ledges, and ropes hung from pulleys.
+			{
+				FLevelDef L;
+				L.Name = "The Quarry";
+				L.Subtitle = "Hand over hand.";
+				L.GoalX = 4100;
+				L.MinX = -600;
+				L.MaxX = 4300;
+				L.bDog = true;
+				L.Ground = { { -600, 500, 300 }, { 500, 900, 100 }, { 1010, 1600, 100 }, { 1600, 2300, 300 }, { 2300, 2700, 90 },
+				             { 2820, 3300, 90 }, { 3300, 4300, 300 } };
+				L.Blocks = { { 4240, -400, 4300, 300 } };
+				L.Ladders = { { 488, 100, 300, true }, { 2288, 90, 300, true } };
+				L.Traps = { { 1900 }, { 3700 } };
+				L.Notes = { { 100, 500, "The rock is too high to climb.\nStand at the rope and hold JUMP." },
+				            { 2000, 2300, "Another rope. Hold JUMP to climb,\nSLIDE to come down." } };
+				L.Embers = { { -300, 190 }, { 955, 10 }, { 2760, 0 } };
+				L.Checkpoints = { 150, 520, 1030, 1620, 2320, 2840, 3320 };
+				L.Theme.Seed = 107;
+				L.Theme.Setting = ESetting::Mountain;
+				L.Theme.Rain = 0.5;
+				L.Theme.Fog = 1.1;
+				L.Theme.Wind = 0.4;
+				L.Theme.ForegroundDensity = 0.4;
+				Levels.push_back(L);
+			}
+
+			// 13 -----------------------------------------------------------------------------------
+			// Hanging bridges over a gorge: planks missing, planks rotten.
+			{
+				FLevelDef L;
+				L.Name = "The Rope Bridge";
+				L.Subtitle = "Not every plank will hold.";
+				L.GoalX = 4100;
+				L.MinX = -600;
+				L.MaxX = 4300;
+				L.bDog = true;
+				L.Ground = { { -600, 600, 300 }, { 1200, 1700, 300 }, { 1700, 2100, 190 }, { 2740, 3200, 190 }, { 3500, 4300, 300 } };
+				AddSlope(L, 3200, 190, 3500, 300);
+				AddBridge(L, 600, 300, "SSSRS__SSRSS_SS");
+				AddBridge(L, 2100, 190, "SSR__SSR__SSRSSS");
+				L.Blocks = { { 4240, -400, 4300, 300 } };
+				L.Logs = { { 1450, 50, 212, 0.95, 2.6, 0.0 } };
+				L.Notes = { { 300, 1200, "A hanging bridge. Some planks are gone,\nand the pale ones will not hold for long." },
+				            { 1720, 2740, "Do not stand on a rotten plank.\nKeep moving, and JUMP the gaps." } };
+				L.Embers = { { 840, 205 }, { 1900, 80 }, { 2260, 95 } };
+				L.Checkpoints = { 150, 1220, 1720, 2760, 3520 };
+				L.Theme.Seed = 109;
+				L.Theme.Setting = ESetting::Mountain;
+				L.Theme.Rain = 0.8;
+				L.Theme.Fog = 1.4;
+				L.Theme.Wind = 1.0;
+				L.Theme.ForegroundDensity = 0.3;
+				Levels.push_back(L);
+			}
+
+			// 14 -----------------------------------------------------------------------------------
+			// A sawmill that never stopped: blades running in the floor, hammers falling from the roof.
+			{
+				FLevelDef L;
+				L.Name = "The Sawmill";
+				L.Subtitle = "It never stopped.";
+				L.GoalX = 4100;
+				L.MinX = -400;
+				L.MaxX = 4400;
+				L.bDog = true;
+				L.Ground = { { -400, 4400, 300 } };
+				L.Blocks = { { 2500, 268, 2540, 300 },     // a stack of boards: vault it
+				             { 2750, 150, 2850, 274 },     // a low beam: slide under
+				             { 4340, -400, 4400, 300 } };
+				L.Hazards = { { EHazard::Saw, 500, 280, 530, 300, 260, 3.2, 0.0 },
+				              { EHazard::Saw, 1100, 280, 1130, 300, 300, 2.6, 0.3 },
+				              { EHazard::Crusher, 1700, 120, 1790, 228, 70, 2.4, 0.0 },
+				              { EHazard::Crusher, 1900, 120, 1990, 228, 70, 2.4, 0.5 },
+				              { EHazard::Crusher, 2100, 120, 2190, 228, 70, 2.4, 0.25 },
+				              { EHazard::Saw, 3050, 280, 3080, 300, 200, 2.4, 0.0 },
+				              { EHazard::Crusher, 3400, 120, 3490, 228, 70, 2.2, 0.0 } };
+				L.Notes = { { 150, 900, "A blade runs in the floor.\nWatch it, then JUMP over it." },
+				            { 1560, 2250, "The hammers fall on a beat.\nGo as one lifts." },
+				            { 2900, 3600, "A blade, then a hammer. One at a time." } };
+				L.Embers = { { 760, 190 }, { 1845, 200 }, { 2800, 120 } };
+				L.Checkpoints = { 150, 950, 1560, 2350, 2900, 3620 };
+				L.Theme.Seed = 113;
+				L.Theme.Setting = ESetting::Warehouse;
+				L.Theme.Rain = 0.0;
+				L.Theme.Fog = 0.7;
+				L.Theme.Brightness = 0.78;
+				L.Theme.Darkness = 0.66;
+				L.Theme.Shafts = 1.6;
+				L.Theme.ForegroundDensity = 0.0;
+				Levels.push_back(L);
+			}
+
+			// 15 -----------------------------------------------------------------------------------
+			// A cistern. Step into it and the water starts to rise: the only way is on, and up.
+			{
+				FLevelDef L;
+				L.Name = "The Cistern";
+				L.Subtitle = "The water is coming up.";
+				L.GoalX = 4200;
+				L.MinX = -400;
+				L.MaxX = 4400;
+				L.bDog = true;
+				L.Ground = { { -400, 700, 300 }, { 700, 1300, 340 }, { 1300, 1700, 306 }, { 1700, 2100, 262 }, { 2100, 2500, 214 },
+				             { 2500, 3600, 190 }, { 3600, 4400, 300 } };
+				L.Blocks = { { 900, 308, 940, 340 },       // a fallen pipe: vault it
+				             { 1100, 200, 1180, 314 },     // a low conduit: slide under
+				             { 4340, -400, 4400, 300 } };
+				L.Floods = { { 700, 2500, 400, 196, 9.0, 760 } };
+				L.Notes = { { 300, 700, "Once you step down, the cistern fills.\nDo not stop until you are out the far side." },
+				            { 700, 2500, "The water is rising. Keep going: on, and up." } };
+				L.Embers = { { -200, 190 }, { 1140, 170 }, { 1500, 190 } };
+				L.Checkpoints = { 150, 620, 2520, 3620 };
+				L.Theme.Seed = 127;
+				L.Theme.Setting = ESetting::Warehouse;
+				L.Theme.Rain = 0.0;
+				L.Theme.Fog = 1.0;
+				L.Theme.Brightness = 0.72;
+				L.Theme.Darkness = 0.7;
+				L.Theme.Shafts = 1.0;
+				L.Theme.ForegroundDensity = 0.0;
+				Levels.push_back(L);
+			}
+
+			// 16 -----------------------------------------------------------------------------------
+			// A foundry still alight: jets from the floor, a burning floor to cross by the catwalk.
+			{
+				FLevelDef L;
+				L.Name = "The Foundry";
+				L.Subtitle = "Something here still burns.";
+				L.GoalX = 4300;
+				L.MinX = -400;
+				L.MaxX = 4600;
+				L.bDog = true;
+				L.Ground = { { -400, 4600, 300 } };
+				L.Blocks = { { 1500, 220, 2100, 236 },     // catwalk over the burning floor
+				             { 4540, -400, 4600, 300 } };
+				L.Ladders = { { 1488, 220, 300, true } };
+				L.Hazards = { { EHazard::Fire, 600, 230, 634, 300, 0, 2.6, 0.0, 0.45 },
+				              { EHazard::Fire, 760, 230, 794, 300, 0, 2.6, 0.5, 0.45 },
+				              { EHazard::Fire, 1100, 274, 1150, 300 },                      // a low fire that never goes out: jump it
+				              { EHazard::Fire, 1560, 266, 2040, 300 },                      // the burning floor under the catwalk
+				              { EHazard::Fire, 1750, 150, 1784, 220, 0, 2.2, 0.0, 0.5 },    // a jet across the catwalk
+				              { EHazard::Crusher, 2500, 120, 2590, 228, 70, 2.4, 0.0 },
+				              { EHazard::Fire, 2800, 230, 2834, 300, 0, 2.4, 0.0, 0.4 },
+				              { EHazard::Fire, 2950, 230, 2984, 300, 0, 2.4, 0.33, 0.4 },
+				              { EHazard::Fire, 3100, 230, 3134, 300, 0, 2.4, 0.66, 0.4 },
+				              { EHazard::Fire, 3400, 274, 3450, 300 } };
+				L.Notes = { { 200, 900, "The vents spit fire, then rest.\nCross while one is resting." },
+				            { 900, 1480, "A low fire that never dies: JUMP it.\nThen the floor ahead is all alight." },
+				            { 1300, 1560, "Take the rope up to the catwalk.\nStand at it and hold JUMP." },
+				            { 2650, 3300, "Three vents, one after another.\nFollow the fire as it moves." } };
+				L.Solution = { Go(1488), Climb() };
+				L.Embers = { { 697, 190 }, { 1900, 120 }, { 3425, 190 } };
+				L.Checkpoints = { 150, 900, 1300, 2150, 2650, 3550 };
+				L.Theme.Seed = 131;
+				L.Theme.Setting = ESetting::Warehouse;
+				L.Theme.Rain = 0.0;
+				L.Theme.Fog = 0.8;
+				L.Theme.Brightness = 0.66;
+				L.Theme.Darkness = 0.72;
+				L.Theme.Shafts = 0.4;
+				L.Theme.ForegroundDensity = 0.0;
+				Levels.push_back(L);
+			}
+
+			// 17 -----------------------------------------------------------------------------------
+			// A wolf. It comes out of the trees behind the child and it does not stop: run, and get up
+			// the rope at the far end.
+			{
+				FLevelDef L;
+				L.Name = "Wolf Wood";
+				L.Subtitle = "Run.";
+				L.GoalX = 4200;
+				L.MinX = -600;
+				L.MaxX = 4400;
+				L.bDog = true;
+				L.Ground = { { -600, 900, 300 }, { 1000, 2000, 300 }, { 2110, 3000, 300 }, { 3090, 3400, 300 }, { 3400, 4400, 100 } };
+				L.Blocks = { { 1300, 268, 1340, 300 },     // a fallen log: vault it without breaking stride
+				             { 1600, 214, 1720, 274 },     // a leaning trunk: slide under
+				             { 2700, 270, 2740, 300 },
+				             { 4340, -400, 4400, 100 } };
+				L.Ladders = { { 3388, 100, 300, true } };
+				L.Traps = { { 2400 } };
+				L.Chasers = { { 700, 400, 3360, 238 } };
+				L.Notes = { { 200, 700, "Something is watching from the trees." },
+				            { 700, 3390, "RUN. Do not stop for anything.\nThere is a rope at the far end." } };
+				L.Embers = { { -300, 190 }, { 950, 200 }, { 3700, -20 } };
+				L.Checkpoints = { 150, 640, 3420 };
+				L.Theme.Seed = 137;
+				L.Theme.Fog = 1.3;
+				L.Theme.Rain = 0.6;
+				L.Theme.Brightness = 0.85;
+				L.Theme.Darkness = 0.62;
+				Levels.push_back(L);
+			}
+
+			// 18 -----------------------------------------------------------------------------------
+			// A pump house: a shaft that fills from the bottom. Ropes and ledges, upward, ahead of the water.
+			{
+				FLevelDef L;
+				L.Name = "The Pump House";
+				L.Subtitle = "Climb faster than it rises.";
+				L.GoalX = 4500;
+				L.MinX = -400;
+				L.MaxX = 4700;
+				L.bDog = true;
+				L.Ground = { { -400, 700, 300 }, { 700, 1100, 340 }, { 1100, 1500, 220 }, { 1500, 1900, 120 }, { 1900, 2300, -20 },
+				             { 2300, 3400, -60 }, { 3850, 4700, 300 } };
+				AddScree(L, 3400, -60, 3850, 300);
+				L.Blocks = { { 4640, -400, 4700, 300 } };
+				L.Ladders = { { 1088, 220, 340, true }, { 1888, -20, 120, true } };
+				L.Hazards = { { EHazard::Crusher, 350, 120, 440, 228, 70, 2.4, 0.0 },
+				              { EHazard::Crusher, 520, 120, 610, 228, 70, 2.4, 0.5 } };
+				L.Floods = { { 700, 2300, 400, -40, 11.0, 760 } };
+				L.Notes = { { 150, 650, "Two hammers. Go as each one lifts." },
+				            { 700, 2300, "The shaft is filling. Up the ropes:\nstand at one and hold JUMP." },
+				            { 2320, 3400, "Out. The way down is scree: you will slide." } };
+				L.Embers = { { 480, 200 }, { 1300, 110 }, { 2100, -130 } };
+				L.Checkpoints = { 150, 640, 2320, 3870 };
+				L.Theme.Seed = 139;
+				L.Theme.Setting = ESetting::Warehouse;
+				L.Theme.Rain = 0.0;
+				L.Theme.Fog = 0.9;
+				L.Theme.Brightness = 0.74;
+				L.Theme.Darkness = 0.68;
+				L.Theme.ForegroundDensity = 0.0;
+				Levels.push_back(L);
+			}
+
+			// 19 -----------------------------------------------------------------------------------
+			// A mill on fire: a bridge over the flames, the machines still turning, the roof walk alight.
+			{
+				FLevelDef L;
+				L.Name = "The Burning Mill";
+				L.Subtitle = "Through, not round.";
+				L.GoalX = 4400;
+				L.MinX = -400;
+				L.MaxX = 4600;
+				L.bDog = true;
+				L.Ground = { { -400, 800, 300 }, { 1400, 2600, 300 }, { 2600, 3200, 150 }, { 3680, 4600, 150 } };
+				AddBridge(L, 800, 300, "SSR_SSRR_SS_RSS");
+				AddBridge(L, 3200, 150, "SS_SRS__SSRS");
+				L.Blocks = { { 4540, -400, 4600, 150 } };
+				L.Ladders = { { 2588, 150, 300, true } };
+				L.Hazards = { { EHazard::Fire, 800, 350, 1400, 440 },                       // the pit under the first bridge
+				              { EHazard::Fire, 1600, 230, 1634, 300, 0, 2.4, 0.0, 0.45 },
+				              { EHazard::Fire, 1750, 230, 1784, 300, 0, 2.4, 0.5, 0.45 },
+				              { EHazard::Saw, 2000, 280, 2030, 300, 240, 2.8, 0.0 },
+				              { EHazard::Crusher, 2350, 120, 2440, 228, 70, 2.4, 0.0 },
+				              { EHazard::Fire, 2800, 124, 2840, 150 },
+				              { EHazard::Fire, 3000, 124, 3040, 150 },
+				              { EHazard::Fire, 3200, 200, 3680, 290 } };                    // and under the second
+				L.Notes = { { 400, 1400, "The bridge is burning from below.\nGaps, and planks that will not hold." },
+				            { 1420, 2600, "Fire, a blade, a hammer.\nEach has its moment: wait for it." },
+				            { 2620, 3680, "Low fires on the roof walk: JUMP them.\nThen one more bridge." } };
+				L.Embers = { { 940, 205 }, { 2000, 190 }, { 3300, 55 } };
+				L.Checkpoints = { 150, 1420, 2620, 3700 };
+				L.Theme.Seed = 149;
+				L.Theme.Setting = ESetting::Warehouse;
+				L.Theme.Rain = 0.0;
+				L.Theme.Fog = 0.9;
+				L.Theme.Brightness = 0.62;
+				L.Theme.Darkness = 0.74;
+				L.Theme.Shafts = 0.3;
+				L.Theme.ForegroundDensity = 0.0;
+				Levels.push_back(L);
+			}
+
+			// 20 -----------------------------------------------------------------------------------
+			// The pack, on the mountain: a long run downhill - a pit, a log, scree, a hanging bridge -
+			// with a wolf behind all the way.
+			{
+				FLevelDef L;
+				L.Name = "The Pack";
+				L.Subtitle = "Down the mountain, and do not look back.";
+				L.GoalX = 4300;
+				L.MinX = -600;
+				L.MaxX = 4500;
+				L.bDog = true;
+				L.Ground = { { -600, 800, 0 }, { 900, 1700, 0 }, { 2000, 2450, 240 }, { 2550, 2800, 240 }, { 3280, 3600, 240 },
+				             { 3600, 4500, 60 } };
+				AddScree(L, 1700, 0, 2000, 240);
+				AddBridge(L, 2800, 240, "SS_SSR_SS_SS");
+				L.Blocks = { { 1200, -32, 1240, 0 },       // a boulder: vault it
+				             { 1450, -86, 1560, -26 },     // a fallen trunk: slide under
+				             { 2030, 178, 2200, 214 },     // another, at the foot of the scree: the slide carries you under
+				             { 4440, -400, 4500, 60 } };
+				L.Ladders = { { 3588, 60, 240, true } };
+				L.Chasers = { { 600, 300, 3560, 242 } };
+				L.Notes = { { 150, 600, "They have your scent." },
+				            { 600, 3590, "RUN. Over, under, down the scree,\nacross the bridge, up the rope." } };
+				L.Embers = { { 850, -95 }, { 2500, 145 }, { 3900, -55 } };
+				L.Checkpoints = { 150, 560, 3620 };
+				L.Theme.Seed = 151;
+				L.Theme.Setting = ESetting::Mountain;
+				L.Theme.Rain = 1.0;
+				L.Theme.Fog = 1.2;
+				L.Theme.Wind = 0.9;
+				L.Theme.Brightness = 0.8;
+				L.Theme.Darkness = 0.66;
+				L.Theme.ForegroundDensity = 0.3;
+				Levels.push_back(L);
+			}
+
+			// 21 -----------------------------------------------------------------------------------
+			// The last stretch: a little of everything, gently, and a second village at first light.
+			{
+				FLevelDef L;
+				L.Name = "First Light";
+				L.Subtitle = "There is another lamp.";
+				L.GoalX = 4900;
+				L.MinX = -600;
+				L.MaxX = 5200;
+				L.bDog = true;
+				L.Ground = { { -600, 700, 300 }, { 800, 1600, 300 }, { 1600, 2200, 150 }, { 2680, 3200, 150 }, { 3600, 5200, 300 } };
+				AddSlope(L, 3200, 150, 3600, 300);
+				AddBridge(L, 2200, 150, "SSRS__SSRSSS");
+				L.Blocks = { { 5140, -400, 5200, 300 } };
+				L.Ladders = { { 1588, 150, 300, true } };
+				L.Traps = { { 3900 } };
+				L.Logs = { { 1200, 50, 212, 0.9, 2.6, 0.0 }, { 4300, 50, 212, 0.95, 2.8, 0.5 } };
+				L.Embers = { { 750, 200 }, { 2400, 55 }, { 4600, 185 } };
+				L.Checkpoints = { 150, 820, 1620, 2700, 3620, 4500 };
+				L.Theme.Seed = 157;
+				L.Theme.Rain = 0.3;
 				L.Theme.Fog = 1.1;
 				L.Theme.Dawn = 1.0;
 				Levels.push_back(L);

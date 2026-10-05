@@ -174,6 +174,19 @@ void FHLGame::OnEventJuice(const HL::FEvent& E)
 	case EEvent::EmberCollect:
 		Burst(E.X, E.Y, 16, 90, 20, 1.6, 0.9, 1.0f, 0.9f, -30, false, true);
 		break;
+	case EEvent::Crush:
+		if (FMath::Abs(E.X - Sim.P.X) < 320.0)
+		{
+			Shake = FMath::Max(Shake, 1.6 * (1.0 - FMath::Abs(E.X - Sim.P.X) / 320.0));
+			Burst(E.X, E.Y, 8, 80, 8, 2.8, 0.5, 0.42f, 0.3f, -8, true);
+		}
+		break;
+	case EEvent::FloodStart:
+		Shake = FMath::Max(Shake, 1.8);
+		break;
+	case EEvent::FireOn:
+		Burst(E.X, E.Y - 6, 5, 50, 60, 1.3, 0.6, 1.0f, 0.8f, -40, false, true);
+		break;
 	case EEvent::DogPoof:
 		Burst(E.X, E.Y, 10, 50, 10, 3.0, 0.5, 0.5f, 0.3f, -10, true);
 		break;
@@ -182,10 +195,84 @@ void FHLGame::OnEventJuice(const HL::FEvent& E)
 	}
 }
 
+// Fires Cue C (at world X, audible within Range) no more often than Every seconds.
+void FHLGame::Cue(EHLCue C, double X, double Range, double Every)
+{
+	double& T = CueTimer[(int32)C];
+	if (T > 0 || !Audio) { return; }
+	const double Near = 1.0 - FMath::Abs(X - Sim.P.X) / Range;
+	if (Near <= 0.02) { return; }
+	T = Every * FMath::FRandRange(0.8, 1.2);
+	const float Pan = (float)FMath::Clamp(((X - CamX) / FMath::Max(1.0, ViewW)) * 2.0 - 1.0, -1.0, 1.0);
+	Audio->OnCue(C, (float)Near, Pan);
+}
+
+// The sounds of what is going on around the child: machines, fire, the bridge, the wolf, the dog, the
+// ghost, the water. Nearest source wins for each kind.
+void FHLGame::TickAmbient(double Dt)
+{
+	for (double& T : CueTimer) { T -= Dt; }
+	if (Sim.Phase != EPhase::Playing) { return; }
+	const FLevelDef& L = *Sim.Level;
+	const FPlayer& P = Sim.P;
+	auto NearestX = [&](double X0, double X1) { return FMath::Clamp(P.X, X0, X1); };
+
+	for (int32 I = 0; I < (int32)L.Hazards.size(); ++I)
+	{
+		const FHazardDef& H = L.Hazards[I];
+		const FRect B = Sim.HazardBox(I);
+		if (H.Kind == EHazard::Saw) { Cue(EHLCue::SawWhirr, (B.X0 + B.X1) * 0.5, 460, 0.16); }
+		else if (H.Kind == EHazard::Fire && Sim.HazardActive(I))
+		{
+			Cue(EHLCue::FireCrackle, NearestX(B.X0, B.X1), 420, 0.07);
+			Cue(EHLCue::FireRoar, NearestX(B.X0, B.X1), 420, 0.45);
+		}
+		else if (H.Kind == EHazard::Crusher && Sim.HazardPhase(I) > 0.72) { Cue(EHLCue::Ratchet, (B.X0 + B.X1) * 0.5, 380, 0.11); }   // winding back up
+	}
+
+	// On a hanging bridge: the ropes work as it takes the weight.
+	if (P.Grounded && ((P.SupportKind == ESupport::Platform && P.SupportIndex >= 0 && L.Platforms[P.SupportIndex].Style == 1) ||
+	                   (P.SupportKind == ESupport::Crumble && P.SupportIndex >= 0 && L.Crumbles[P.SupportIndex].bPlank)))
+	{
+		Cue(EHLCue::BridgeCreak, P.X, 100, FMath::Abs(P.VX) > 40.0 ? 0.55 : 1.6);
+	}
+
+	for (const FChaser& C : Sim.Chasers)
+	{
+		if (C.State == 1)
+		{
+			Cue(EHLCue::WolfPaws, C.X, 620, 0.2);
+			Cue(EHLCue::WolfGrowl, C.X, 620, 0.85);
+		}
+	}
+
+	if (Sim.Dog.Active && Sim.Dog.Grounded)
+	{
+		const double Spd = FMath::Abs(Sim.Dog.VX);
+		if (Spd > 30.0) { Cue(EHLCue::DogPaws, Sim.Dog.X, 320, Spd > 170.0 ? 0.14 : 0.22); }
+		if (Spd > 150.0 || (Spd < 5.0 && Sim.Dog.SitTime > 1.5 && Sim.Dog.SitTime < 5.0)) { Cue(EHLCue::DogPant, Sim.Dog.X, 260, 0.34); }   // out of breath after a run
+	}
+
+	if (Sim.Ghost.State == 1) { Cue(EHLCue::GhostMoan, Sim.Ghost.X, 520, 1.5); }
+
+	for (int32 I = 0; I < (int32)L.Floods.size(); ++I)
+	{
+		if (Sim.FloodOn[I] && Sim.FloodY[I] > L.Floods[I].EndY + 0.5)
+		{
+			// louder as it gets closer to the child's feet
+			const double Gap = FMath::Clamp((Sim.FloodY[I] - P.Y) / 260.0, 0.0, 0.9);
+			Cue(EHLCue::FloodRush, P.X + Gap * 500.0, 520, 0.9);
+		}
+	}
+
+	if (P.Scree != 0 && P.Grounded) { Cue(EHLCue::Scree, P.X, 100, 0.13); }
+}
+
 FString FHLGame::WantedNote() const
 {
 	if (Screen != EHLScreen::Playing || bAttract || Sim.Phase != EPhase::Playing) { return FString(); }
 	if (Sim.Ghost.State == 1) { return TEXT("Something has come for the light.\nWHISTLE: the dog will see it off."); }
+	for (const FChaser& C : Sim.Chasers) { if (C.State == 1) { return TEXT("RUN."); } }
 	for (const FNoteDef& N : Sim.Level->Notes)
 	{
 		if (Sim.P.X >= N.X0 && Sim.P.X <= N.X1 && (N.UntilGate < 0 || !Sim.Gates[N.UntilGate].Open)) { return FString(UTF8_TO_TCHAR(N.Text.c_str())); }
@@ -304,6 +391,7 @@ void FHLGame::Tick(float DeltaSeconds, const FHLControls& Controls, const FHLMen
 	// Particles drift, rise or fall, and fade (frozen while paused).
 	if (Screen != EHLScreen::Paused)
 	{
+		TickAmbient(Dt);
 		for (int32 I = Particles.Num() - 1; I >= 0; --I)
 		{
 			FHLParticle& Pt = Particles[I];
@@ -370,6 +458,13 @@ void FHLGame::StepWorld(double Dt, const FHLControls& Controls)
 		for (const HL::FEvent& E : Sim.Events)
 		{
 			OnEventJuice(E);
+			if (E.Type == EEvent::Footstep && Sim.P.SupportIndex >= 0 &&
+				((Sim.P.SupportKind == ESupport::Platform && Sim.Level->Platforms[Sim.P.SupportIndex].Style == 1) ||
+				 (Sim.P.SupportKind == ESupport::Crumble && Sim.Level->Crumbles[Sim.P.SupportIndex].bPlank)))
+			{
+				CueTimer[(int32)EHLCue::PlankStep] = 0;
+				Cue(EHLCue::PlankStep, E.X, 100, 0.05);
+			}
 			if (E.Type == EEvent::Land && E.Strength > 0.75) { Shake = FMath::Max(Shake, 1.2); }
 			if (E.Type == EEvent::EmberCollect && !bAttract && !bAutopilotInPlay && Save->EmberMask.IsValidIndex(LevelIndex))
 			{
@@ -527,7 +622,13 @@ void FHLGame::Activate(const FHLButton& B)
 		break;
 	case EHLAction::Levels:
 		ReturnScreen = Screen;
+		LevelPage = FMath::Clamp((Screen == EHLScreen::Title ? Save->LastLevel : LevelIndex) / kChapterSize, 0, NumChapters() - 1);
 		GoTo(EHLScreen::LevelSelect);
+		break;
+	case EHLAction::PageLevels:
+		LevelPage = FMath::Clamp(LevelPage + B.Param, 0, NumChapters() - 1);
+		ScreenTime = 1.0;
+		Focus = 0;
 		break;
 	case EHLAction::Settings:
 		ReturnScreen = Screen;

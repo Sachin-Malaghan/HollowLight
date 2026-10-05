@@ -528,6 +528,8 @@ void FHLWorldRenderer::DrawPlayLayer(FHLDraw& D, const FHLRenderView& V)
 		}
 	}
 
+	DrawFloods(D, V);
+	DrawBridges(D, V);
 	DrawPlatforms(D, V);
 	DrawCrumbles(D, V);
 
@@ -541,7 +543,9 @@ void FHLWorldRenderer::DrawPlayLayer(FHLDraw& D, const FHLRenderView& V)
 	}
 
 	DrawMechanisms(D, V);
+	DrawHazards(D, V);
 	DrawTraps(D, V);
+	DrawChasers(D, V);
 	DrawDog(D, V);
 	DrawPlayer(D, V);
 	DrawGhost(D, V);
@@ -690,6 +694,13 @@ void FHLWorldRenderer::DrawPlatforms(FHLDraw& D, const FHLRenderView& V)
 	{
 		const FRect B = S.PlatformBox(I);
 		if (B.X1 < VisibleX0 - 100 || B.X0 > VisibleX1 + 100) { continue; }
+		if (S.Level->Platforms[I].Style == 1)
+		{
+			// a sound plank of a hanging bridge
+			D.Rect(B.X0 + 1.5, B.Y0, B.X1 - 1.5, B.Y0 + 6.0, Black);
+			D.Line(B.X0 + 3, B.Y0 + 0.5, B.X1 - 3, B.Y0 + 0.5, 0.7, HLGrey(0.35f, 0.5f));
+			continue;
+		}
 		const double CY = B.Y0 + kPlatformThickness * 0.5;
 		// A bough slung on two vines from the canopy.
 		for (int Side = 0; Side < 2; ++Side)
@@ -716,6 +727,21 @@ void FHLWorldRenderer::DrawCrumbles(FHLDraw& D, const FHLRenderView& V)
 		const FCrumble& C = S.Crumbles[I];
 		if (Def.X1 < VisibleX0 || Def.X0 > VisibleX1) { continue; }
 		if (C.State == 2 && C.Drop > 500) { continue; }
+		if (Def.bPlank)
+		{
+			// A rotten plank: paler, split, sagging. It shivers before it goes, then drops away turning.
+			const double Shiver = C.State == 1 ? FMath::Sin(S.Time * 90.0) * 1.3 : 0.0;
+			const double Fall = C.State == 2 ? C.Drop : 0.0;
+			const FVector2D Mid((Def.X0 + Def.X1) * 0.5 + Shiver, Def.Top + 3.0 + Fall + (C.State == 1 ? 2.0 : 0.8));
+			const double Ang = C.State == 2 ? FMath::Min(1.4, Fall * 0.006) : 0.05;
+			const double HW = (Def.X1 - Def.X0) * 0.5 - 1.5;
+			auto Pt = [&](double X, double Y) { return Rotated(Mid + FVector2D(X, Y), Mid, Ang); };
+			D.Quad(Pt(-HW, -3), Pt(HW, -3), Pt(HW, 3), Pt(-HW, 3), Black);
+			const FVector2D C0 = Pt(-HW + 2, -2.2), C1 = Pt(HW - 2, -2.2), K0 = Pt(-3, -3), K1 = Pt(2, 3);
+			D.Line(C0.X, C0.Y, C1.X, C1.Y, 1.1, HLGrey(0.62f, 0.75f));      // bleached, where the others are dark
+			D.Line(K0.X, K0.Y, K1.X, K1.Y, 1.0, HLGrey(0.62f, 0.75f));      // and split across
+			continue;
+		}
 		double JX = 0, JY = 0;
 		if (C.State == 1)
 		{
@@ -1061,6 +1087,26 @@ void FHLWorldRenderer::DrawMechanisms(FHLDraw& D, const FHLRenderView& V)
 		if (Ld.X < VisibleX0 - 30 || Ld.X > VisibleX1 + 30) { continue; }
 		const double Side = S.HasSupport(Ld.X + 20.0, Ld.Top, 2.0, 2.0) ? 1.0 : -1.0;   // which way the ledge lies
 		const double Wall = Ld.X + Side * 15.0;
+		if (Ld.bRope)
+		{
+			// A rope over a pulley on a post at the top of the face: knots to climb by, a bucket for a counterweight.
+			const double PX = Ld.X + Side * 20.0, WY = Ld.Top - 60.0;
+			D.TaperLine(PX, Ld.Top + 2, PX, WY - 6, 6.0, 4.5, Black);                    // post
+			D.Line(PX, WY, Ld.X - Side * 2.0, WY, 4.0, Black);                         // arm
+			D.Line(PX, Ld.Top - 26, Ld.X + Side * 6.0, WY + 2, 2.2, Black);            // brace
+			D.Circle(Ld.X, WY + 6, 8.0, Black, 16);                                    // the wheel
+			D.Ring(Ld.X, WY + 6, 4.2, 5.2, HLGrey(0.55f, 0.7f), HLGrey(0.55f, 0.7f), 14);
+			const double Sway = FMath::Sin(V.Time * 1.1 + Ld.X * 0.02) * 1.6;
+			D.Curve(FVector2D(Ld.X - Side * 0.5, WY + 12), FVector2D(Ld.X + Sway, (WY + Ld.Bottom) * 0.5), FVector2D(Ld.X + Sway * 0.4, Ld.Bottom - 5), 2.4, 2.4, Black, 10);
+			for (double Y = Ld.Bottom - 16; Y > Ld.Top - 30; Y -= 22)
+			{
+				const double T = (Y - WY) / (Ld.Bottom - WY);
+				D.Circle(Ld.X + Sway * FMath::Sin(T * PI), Y, 2.9, Black, 8);
+			}
+			D.Line(Ld.X - Side * 7.5, WY + 8, Ld.X - Side * 7.5, WY + 34, 1.6, Black);  // the other end, and its bucket
+			D.Quad(FVector2D(Ld.X - Side * 7.5 - 5, WY + 34), FVector2D(Ld.X - Side * 7.5 + 5, WY + 34), FVector2D(Ld.X - Side * 7.5 + 4, WY + 46), FVector2D(Ld.X - Side * 7.5 - 4, WY + 46), Black);
+			continue;
+		}
 		for (int R = -1; R <= 1; R += 2)
 		{
 			const double RX = Ld.X + R * 6.5;
@@ -1236,9 +1282,12 @@ void FHLWorldRenderer::DrawMechanisms(FHLDraw& D, const FHLRenderView& V)
 
 void FHLWorldRenderer::DrawDog(FHLDraw& D, const FHLRenderView& V)
 {
+	if (V.Sim->Dog.Active) { DrawCanine(D, V, V.Sim->Dog, 1.2, false); }
+}
+
+void FHLWorldRenderer::DrawCanine(FHLDraw& D, const FHLRenderView& V, const FDog& G, double BaseSize, bool bWolf)
+{
 	const FSim& S = *V.Sim;
-	const FDog& G = S.Dog;
-	if (!G.Active) { return; }
 	const double X = G.X, F = G.Facing;
 	const double Spd = FMath::Abs(G.VX);
 	const double Move = FMath::Clamp(Spd / 110.0, 0.0, 1.0);
@@ -1254,7 +1303,7 @@ void FHLWorldRenderer::DrawDog(FHLDraw& D, const FHLRenderView& V)
 	const double Bob = bAir ? 0.0 : FMath::Sin(Cycle * 4.0 * PI) * (0.5 + 0.9 * Gallop) * Move;
 
 	// Drawn a little larger than its collision box (except when squeezing under something), about its paws.
-	const double Size = bLow ? 1.0 : 1.2;
+	const double Size = bLow ? 1.0 : BaseSize;
 	D.SetTransform(V.Scale * Size, X - (X - V.CamX) / Size, G.Y - (G.Y - V.CamY) / Size);
 
 	// Shoulder and hip carry everything else. Sitting drops the hips; a gallop rocks the spine.
@@ -1340,11 +1389,22 @@ void FHLWorldRenderer::DrawDog(FHLDraw& D, const FHLRenderView& V)
 		D.Tri(Hd.X - F * 3.2, Hd.Y - 1.5, Hd.X + F * 0.8, Hd.Y - 3.4, Tip.X, Tip.Y, Black);
 		D.Tri(Hd.X - F * 1.2, Hd.Y - 2.8, Hd.X + F * 2.2, Hd.Y - 3.0, Tip.X + F * 2.4, Tip.Y + 0.6, Black);
 	}
-	D.Circle(Hd.X + F * 1.7, Hd.Y - 0.9, 0.6, HLGrey(0.7f, 0.7f), 6);   // a glint of an eye
+	D.Circle(Hd.X + F * 1.7, Hd.Y - 0.9, bWolf ? 0.85 : 0.6, HLGrey(bWolf ? 1.0f : 0.7f, bWolf ? 1.0f : 0.7f), 6);   // a glint of an eye
+	if (bWolf)
+	{
+		// hackles up along the back, and a heavier ruff
+		for (int K = 0; K < 5; ++K)
+		{
+			const FVector2D P0 = FMath::Lerp(Sh + FVector2D(F * 1.0, -5.2), Hp + FVector2D(0, -4.4), K / 5.0);
+			const FVector2D P1 = FMath::Lerp(Sh + FVector2D(F * 1.0, -5.2), Hp + FVector2D(0, -4.4), (K + 1) / 5.0);
+			D.Tri(P0.X, P0.Y + 1.0, P1.X, P1.Y + 1.0, (P0.X + P1.X) * 0.5 - F * 1.5, (P0.Y + P1.Y) * 0.5 - 3.2, Black);
+		}
+		D.Circle(Sh.X + F * 2.0, Sh.Y - 2.0, 5.2, Black, 10);
+	}
 
 	// Tail: wags when it is pleased, streams behind at a run, held out straight when pointing.
 	{
-		const double Wag = FMath::Sin(V.Time * 11.0) * 3.0;
+		const double Wag = bWolf ? 0.0 : FMath::Sin(V.Time * 11.0) * 3.0;
 		const FVector2D Root = Hp + FVector2D(-F * 4.2, -3.0);
 		FVector2D Mid = Root + FMath::Lerp(FVector2D(-F * 5.5, -1.5), FVector2D(-F * 5.0, 1.0), Move);
 		FVector2D Tip = Root + FMath::Lerp(FVector2D(-F * (6.0 + Wag * 0.6), -9.0), FVector2D(-F * 10.5, -3.0 + FMath::Sin(Cycle * 4.0 * PI) * 1.5), Move);
@@ -1424,6 +1484,152 @@ void FHLWorldRenderer::DrawMist(FHLDraw& D, const FHLRenderView& V)
 			D.TriColors(FVector2D(CX, CY), FVector2D(CX + FMath::Cos(A0) * RX, CY + FMath::Sin(A0) * RY),
 			            FVector2D(CX + FMath::Cos(A1) * RX, CY + FMath::Sin(A1) * RY), In, Edge, Edge);
 		}
+	}
+}
+
+// Chapter two's machinery: hammers on their rods, blades in their slots, the grates fire comes out of.
+// (The flames themselves are light: see DrawLight.)
+void FHLWorldRenderer::DrawHazards(FHLDraw& D, const FHLRenderView& V)
+{
+	const FSim& S = *V.Sim;
+	const FLevelDef& L = *S.Level;
+	const FLinearColor Steel = HLGrey(0.62f, 0.8f);
+	for (int32 I = 0; I < (int32)L.Hazards.size(); ++I)
+	{
+		const FHazardDef& H = L.Hazards[I];
+		if (H.X1 + H.Travel < VisibleX0 - 40 || H.X0 > VisibleX1 + 40) { continue; }
+		const FRect B = S.HazardBox(I);
+		const double CX = (B.X0 + B.X1) * 0.5;
+		if (H.Kind == EHazard::Crusher)
+		{
+			const double Floor = H.Y1 + H.Travel;
+			D.Rect(B.X0 - 6, H.Y0 - 400, B.X0 - 2, H.Y1 - 6, Black);                // guides
+			D.Rect(B.X1 + 2, H.Y0 - 400, B.X1 + 6, H.Y1 - 6, Black);
+			D.Rect(CX - 8, H.Y0 - 400, CX + 8, B.Y0 + 2, Black);                    // the rod
+			D.Line(CX - 5, H.Y0 - 400, CX - 5, B.Y0, 0.8, HLGrey(0.4f, 0.5f));
+			D.Rect(B.X0, B.Y0, B.X1, B.Y1 - 6, Black);                              // the head
+			for (double TX = B.X0; TX < B.X1 - 1; TX += 15.0)
+			{
+				D.Tri(TX, B.Y1 - 6.5, FMath::Min(TX + 15.0, B.X1), B.Y1 - 6.5, FMath::Min(TX + 7.5, B.X1), B.Y1, Black);   // its teeth
+			}
+			D.Line(B.X0 + 2, B.Y1 - 7, B.X1 - 2, B.Y1 - 7, 1.0, Steel);
+			D.Line(B.X0 + 2, B.Y0 + 1, B.X1 - 2, B.Y0 + 1, 0.8, HLGrey(0.4f, 0.5f));
+			D.Rect(B.X0 - 8, Floor - 3, B.X1 + 8, Floor + 1, Black);               // the anvil plate it lands on
+			D.Line(B.X0 - 6, Floor - 3, B.X1 + 6, Floor - 3, 0.8, Steel);
+		}
+		else if (H.Kind == EHazard::Saw)
+		{
+			// the slot it runs in, and a toothed disc half out of the floor
+			D.Line(H.X0 - 4, H.Y1 - 0.5, H.X1 + H.Travel + 4, H.Y1 - 0.5, 1.4, HLGrey(0.5f, 0.6f));
+			const double R = 19.0, CY = B.Y1 - 1.0, Spin = V.Time * 11.0;
+			D.Circle(CX, CY, R - 4.0, Black, 20);
+			for (int K = 0; K < 12; ++K)
+			{
+				const double A0 = Spin + K * (2.0 * PI / 12.0), A1 = A0 + 0.36, A2 = A0 + 0.12;
+				D.Tri(CX + FMath::Cos(A0) * (R - 5.0), CY + FMath::Sin(A0) * (R - 5.0), CX + FMath::Cos(A1) * (R - 5.0), CY + FMath::Sin(A1) * (R - 5.0),
+				      CX + FMath::Cos(A2) * R, CY + FMath::Sin(A2) * R, Black);
+			}
+			D.Ring(CX, CY, R - 7.5, R - 6.3, Steel, Steel, 20);
+			D.Circle(CX, CY, 3.0, Steel, 10);
+			D.Rect(CX - R - 4, B.Y1, CX + R + 4, B.Y1 + R + 4, Black);             // the floor hides its lower half
+		}
+		else if (H.Period > 0)
+		{
+			// a vent grate
+			D.Rect(B.X0 - 5, B.Y1 - 4, B.X1 + 5, B.Y1 + 1, Black);
+			D.Line(B.X0 - 3, B.Y1 - 4, B.X1 + 3, B.Y1 - 4, 0.9, Steel);
+			if (H.Y1 < S.SurfaceAt(CX, H.Y1 - 2.0) - 20.0) { D.Rect(B.X0 - 5, B.Y1 - 4, B.X1 + 5, B.Y1 + 6, Black); }
+		}
+		else
+		{
+			// a bed of coals
+			for (double TX = B.X0 + 3; TX < B.X1; TX += 9.0)
+			{
+				D.Ellipse(TX, B.Y1 - 1.5, 4.5, 2.6, Black, 8);
+			}
+		}
+	}
+}
+
+// Rising water: black, with a pale line where the surface is.
+void FHLWorldRenderer::DrawFloods(FHLDraw& D, const FHLRenderView& V)
+{
+	const FSim& S = *V.Sim;
+	const double Bottom = V.CamY + kViewHeight + 30;
+	for (int32 I = 0; I < (int32)S.Level->Floods.size(); ++I)
+	{
+		const FFloodDef& F = S.Level->Floods[I];
+		const double Y = S.FloodY[I];
+		if (F.X1 < VisibleX0 || F.X0 > VisibleX1 || Y > Bottom) { continue; }
+		D.Rect(F.X0, Y, F.X1, Bottom, FLinearColor(0, 0, 0, 0.93f));
+		const FLinearColor Sheen = HLGrey(0.6f, 0.85f);
+		for (double X = FMath::Max(F.X0, FMath::FloorToDouble(VisibleX0 / 5.0) * 5.0); X < FMath::Min(F.X1, VisibleX1); X += 5)
+		{
+			const double Wave = FMath::Sin(X * 0.08 + V.Time * 2.6) * 0.9;
+			FLinearColor C = Sheen;
+			C.A *= (float)(0.5 + 0.4 * FMath::Sin(X * 0.21 - V.Time * 1.9));
+			D.Rect(X, Y - 0.9 + Wave, FMath::Min(F.X1, X + 4.5), Y + 1.0 + Wave, C);
+		}
+		if (S.FloodOn[I] && Y > F.EndY + 0.5)
+		{
+			// it is coming up: bubbles
+			for (int K = 0; K < 10; ++K)
+			{
+				const double Age = FMath::Fmod(V.Time * 0.9 + K * 0.31, 1.0);
+				const uint32 Hh = Hash32((uint32)I * 7u + (uint32)K, (uint32)FMath::FloorToInt(V.Time * 0.9 + K * 0.31));
+				const double BX = FMath::Lerp(FMath::Max(F.X0, VisibleX0), FMath::Min(F.X1, VisibleX1), Hash01(Hh, 1));
+				D.Ring(BX, Y + 26.0 - Age * 24.0, 1.2 + Age * 1.6, 2.0 + Age * 1.6, HLGrey(0.6f, (float)(0.5 * (1.0 - Age))), HLGrey(0.6f, (float)(0.5 * (1.0 - Age))), 8);
+			}
+		}
+	}
+}
+
+// Posts and ropes of the hanging bridges (the planks are drawn with the platforms and crumbles).
+void FHLWorldRenderer::DrawBridges(FHLDraw& D, const FHLRenderView& V)
+{
+	const FSim& S = *V.Sim;
+	for (const FBridgeDef& Br : S.Level->Bridges)
+	{
+		if (Br.X1 < VisibleX0 - 30 || Br.X0 > VisibleX1 + 30) { continue; }
+		const double Mid = (Br.X0 + Br.X1) * 0.5, Sway = FMath::Sin(V.Time * 0.9 + Br.X0 * 0.01) * (1.5 + 2.5 * S.Level->Theme.Wind);
+		for (int E = 0; E < 2; ++E)
+		{
+			const double PX = E == 0 ? Br.X0 - 8 : Br.X1 + 8;
+			D.TaperLine(PX, Br.Y + 14, PX + (E == 0 ? -3 : 3), Br.Y - 52, 7.0, 5.0, Black);
+			D.Line(PX, Br.Y - 46, PX + (E == 0 ? -34 : 34), Br.Y + 4, 1.6, Black);   // a guy rope staked into the bank
+		}
+		const FVector2D A(Br.X0 - 8, Br.Y - 46), B(Br.X1 + 8, Br.Y - 46);
+		auto Hand = [&](double T) { const FVector2D K(Mid + Sway, Br.Y - 46 + 44); const double U = 1.0 - T; return A * (U * U) + K * (2.0 * U * T) + B * (T * T); };
+		D.Curve(A, FVector2D(Mid + Sway, Br.Y - 46 + 44), B, 2.0, 2.0, Black, 16);                                        // hand rope
+		D.Curve(FVector2D(Br.X0 - 4, Br.Y + 4), FVector2D(Mid, Br.Y + 16), FVector2D(Br.X1 + 4, Br.Y + 4), 1.8, 1.8, Black, 12);   // the rope the planks hang on
+		for (double X = Br.X0 + 20; X < Br.X1; X += 40.0)
+		{
+			const FVector2D Hp = Hand((X - A.X) / (B.X - A.X));
+			D.Line(Hp.X, Hp.Y, X, Br.Y + 2, 0.9, Black);   // hangers
+		}
+	}
+}
+
+// The wolf: the dog's skeleton, bigger, hackles up.
+void FHLWorldRenderer::DrawChasers(FHLDraw& D, const FHLRenderView& V)
+{
+	const FSim& S = *V.Sim;
+	for (int32 I = 0; I < (int32)S.Chasers.size(); ++I)
+	{
+		const FChaser& C = S.Chasers[I];
+		if (C.State != 1 && C.State != 2) { continue; }
+		if (C.X < VisibleX0 - 80 || C.X > VisibleX1 + 80) { continue; }
+		FDog W;
+		W.Active = true;
+		W.X = C.X;
+		W.Y = C.Y;
+		W.Grounded = true;
+		W.RunPhase = C.RunPhase;
+		W.Mode = EDogMode::Follow;
+		if (C.State == 1) { W.Facing = 1; W.VX = S.Level->Chasers[I].Speed; }
+		else if (C.Timer > 0.9) { W.Facing = -1; W.VX = -130.0; }
+		else { W.Facing = 1; W.VX = 0; W.BarkFlash = 0.3 * FMath::Max(0.0, 1.0 - C.Timer / 0.6); }   // it stops, and snarls after the child
+		DrawCanine(D, V, W, 1.75, true);
 	}
 }
 
@@ -1933,6 +2139,33 @@ void FHLWorldRenderer::DrawLight(FHLDraw& D, const FHLRenderView& V)
 			D.Glow(SP.X, SP.Y, 2.8 * V.Scale, Amber(0.7f * A), FLinearColor(0, 0, 0, 1), 8);
 		}
 	}
+
+	// Fire: the only other warm light in the world. Tongues of flame over each vent and bed of coals.
+	D.SetTransform(V.Scale, V.CamX, V.CamY);
+	for (int32 Hi = 0; Hi < (int32)S.Level->Hazards.size(); ++Hi)
+	{
+		const FHazardDef& H = S.Level->Hazards[Hi];
+		if (H.Kind != EHazard::Fire || H.X1 < VisibleX0 - 60 || H.X0 > VisibleX1 + 60) { continue; }
+		const bool bOn = S.HazardActive(Hi);
+		const bool bWarn = !bOn && S.HazardPhase(Hi) > 0.84;   // a pilot flame just before it lights
+		if (!bOn && !bWarn) { continue; }
+		const double Full = H.Y1 - H.Y0, Hgt = Full * (bOn ? 1.0 : 0.14);
+		const int32 N = FMath::Max(2, (int32)((H.X1 - H.X0) / 13.0));
+		for (int32 K = 0; K < N; ++K)
+		{
+			const double X = FMath::Lerp(H.X0 + 3.0, H.X1 - 3.0, (K + 0.5) / N);
+			const double Tall = Hgt * (0.62 + 0.38 * FMath::Sin(V.Time * 13.0 + K * 2.1 + Hi)) * (0.85 + 0.15 * FMath::Sin(V.Time * 31.0 + K));
+			const double Lean = FMath::Sin(V.Time * 7.0 + K * 1.3) * 3.0;
+			D.Tri(X - 8.0, H.Y1, X + 8.0, H.Y1, X + Lean, H.Y1 - Tall, Amber(0.5f));
+			D.Tri(X - 4.0, H.Y1, X + 4.0, H.Y1, X + Lean * 0.6, H.Y1 - Tall * 0.62, Amber(0.95f));
+		}
+		const double W = H.X1 - H.X0;
+		for (double GX = H.X0 + FMath::Min(W * 0.5, 30.0); GX < H.X1; GX += 70.0)
+		{
+			D.Glow(GX, H.Y1 - Hgt * 0.45, FMath::Max(34.0, Hgt * 1.3), Amber((bOn ? 0.26f : 0.08f) * (float)Flicker(V.Time + GX)), FLinearColor(0, 0, 0, 1), 20);
+		}
+	}
+	D.SetTransform(1, 0, 0);
 
 	// Embers: three to a level, each a little out of the way. They glow through the dark.
 	for (int32 E = 0; E < (int32)S.Level->Embers.size(); ++E)

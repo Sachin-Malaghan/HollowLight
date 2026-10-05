@@ -14,9 +14,10 @@ Ready to paste into Google Play Console and App Store Connect. Screenshots come 
 
 The rain has not stopped for a long time. The forest is the colour of ash, and somewhere past the last of the trees a lamp post stands unlit.
 
-A child in a scarf carries the only warm thing left — a lantern — through eleven stretches of wood, mountain, warehouse and railway — and, before long, a stray dog decides to come too.
+A child in a scarf carries the only warm thing left — a lantern — through twenty-one stretches of wood, mountain, warehouse, railway, mill and foundry — and, before long, a stray dog decides to come too.
 
-• Eleven handcrafted levels, from the edge of the wood, through a warehouse, a railway station and over a mountain, to a village at dawn
+• Twenty-one handcrafted levels in two chapters, from the edge of the wood to a second village at first light
+• Ropes and pulleys, hanging bridges with rotten planks, saw blades and falling hammers, fire, a cistern that floods behind you, and a wolf that will not stop
 • Puzzles you have to think about: levers, pressure plates, drawbridges, a winch handle and a crowbar to carry to where they are needed
 • A dog that follows you, barks at the traps it smells, holds a plate down while you run, and squeezes through gaps you cannot
 • Run, sprint, slide under, vault over, catch a ledge and pull yourself up, climb ladders
@@ -28,6 +29,12 @@ A child in a scarf carries the only warm thing left — a lantern — through el
 • No ads. No accounts. No tracking. No in-app purchases. Plays offline.
 
 Bring the light home.
+
+## What's new (3.0.0)
+
+Chapter two: ten new levels. Climb ropes hung from pulleys, cross hanging bridges with rotten planks, time
+your way past saw blades, falling hammers and fire, get out of a cistern before it floods, and run from a
+wolf. The game also now carries on from where you stopped.
 
 ## What's new (2.3.0)
 

@@ -22,13 +22,14 @@ namespace HL
 		Checkpoint, Goal, CrateLand, CrateSplash, CrateReset, Splash, CrumbleCreak, CrumbleFall, LogSwoosh,
 		Slide, Vault, Grab, Climb, Roll, HardLand,
 		Lever, GateOpen, GateShut, PlateDown, PlateUp, Pickup, UseTool, Whistle, Bark, LadderStep, DogPoof,
-		GhostAppear, GhostFlee, EmberCollect
+		GhostAppear, GhostFlee, EmberCollect,
+		Crush, FireOn, FloodStart, WolfHowl, WolfGiveUp
 	};
 
 	// What the body is doing, for the renderer.
 	enum class EPose : uint8_t { Stand, Slide, Crouch, Vault, Hang, Climb, Roll, Stunned, Ladder };
 
-	enum class EDeath : uint8_t { None, Pit, Trap, Log, Water, Ghost };
+	enum class EDeath : uint8_t { None, Pit, Trap, Log, Water, Ghost, Machine, Fire, Wolf };
 
 	// What the ACT button would do right now (it is labelled with this).
 	enum class EActKind : uint8_t { Whistle, Take, Use, Lever };
@@ -170,6 +171,14 @@ namespace HL
 		int Side = 1;
 	};
 
+	struct FChaser
+	{
+		int State = 0;                 // 0 waiting, 1 hunting, 2 giving up, 3 gone
+		double X = 0, Y = 0;
+		double RunPhase = 0;
+		double Timer = 0;
+	};
+
 	class FSim
 	{
 	public:
@@ -190,6 +199,9 @@ namespace HL
 		bool GateSolid(int I) const { return Level->Gates[I].bBridge ? Gates[I].Amount > 0.9 : Gates[I].Amount < 0.55; }
 		int LadderAt(double X, double FeetY) const;               // ladder the child at (X, FeetY) can hold, or -1
 		EActKind ActKind(int* OutIndex = nullptr) const;          // what ACT would do now, and to which thing
+		double HazardPhase(int I) const;                          // 0..1 through its period
+		bool HazardActive(int I) const;                           // deadly right now (a fire that is lit)
+		FRect HazardBox(int I) const;                             // where it is right now
 
 		const FLevelDef* Level = nullptr;
 		double Time = 0;
@@ -210,6 +222,9 @@ namespace HL
 		int EmbersTaken() const { int N = 0; for (bool b : EmberTaken) { N += b ? 1 : 0; } return N; }
 		FDog Dog;
 		FGhost Ghost;
+		std::vector<double> FloodY;
+		std::vector<bool> FloodOn;
+		std::vector<FChaser> Chasers;
 		double Linger = 0;        // seconds since the child last got further (the ghost's cue)
 		double ProgressX = 0;
 		int CheckpointIndex = -1;
@@ -236,6 +251,8 @@ namespace HL
 		void ThrowLever(int Index, double X, double Y);
 		void UpdateDog();
 		void UpdateGhost();
+		void UpdateDangers();
+		void ResetDangers();
 		void PlaceDogNearPlayer();
 		void MovePlayerX(double DX, bool bAllowPush);
 		void MovePlayerY(double DY);

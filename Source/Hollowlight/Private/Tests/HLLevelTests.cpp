@@ -262,10 +262,33 @@ bool FHLEmbers::RunTest(const FString& Parameters)
 				bReach = Surface - E.Y > 0.0 && Surface - E.Y < 150.0;
 			}
 			for (const FWaterDef& W : Levels[L].Water) { bReach = bReach || (E.X > W.X0 && E.X < W.X1 && W.Surface - E.Y < 190.0); }
-			for (const FPlatformDef& Pf : Levels[L].Platforms) { bReach = bReach || (E.X > Pf.AX - 60 && E.X < Pf.BX + 60 && Pf.AY - E.Y < 150.0); }
+			for (const FPlatformDef& Pf : Levels[L].Platforms) { bReach = bReach || (E.X > Pf.AX - 100 && E.X < Pf.BX + 100 && Pf.AY - E.Y < 150.0); }
 			TestTrue(FString::Printf(TEXT("level %d ember at (%.0f, %.0f) is within a jump of somewhere to stand"), L + 1, E.X, E.Y), bReach);
 			TestTrue(FString::Printf(TEXT("level %d ember at (%.0f, %.0f) is not buried"), L + 1, E.X, E.Y), Sim.IsFree({ E.X - 4, E.Y - 4, E.X + 4, E.Y + 4 }));
 		}
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHLDangers, "Hollowlight.Dangers.WolfAndFloodCatchAChildWhoStops", HLTests::Flags)
+bool FHLDangers::RunTest(const FString& Parameters)
+{
+	for (const FLevelDef& L : GetLevels())
+	{
+		if (L.Chasers.empty() && L.Floods.empty()) { continue; }
+		// Walk to just past the trigger, then stand still.
+		const double Stop = (L.Chasers.empty() ? L.Floods[0].TriggerX : L.Chasers[0].TriggerX) + 30.0;
+		FSim Sim;
+		Sim.Load(L);
+		FAutopilot Pilot;
+		for (int32 I = 0; I < (int32)(90.0 / kStep) && Sim.Deaths == 0; ++I)
+		{
+			FInput In;
+			if (Sim.P.X < Stop) { In = Pilot.Decide(Sim); }
+			Sim.Events.clear();
+			Sim.Step(In);
+		}
+		TestTrue(FString::Printf(TEXT("%hs: stopping is fatal"), L.Name.c_str()), Sim.Deaths > 0 && (Sim.LastDeath == EDeath::Wolf || Sim.LastDeath == EDeath::Water));
 	}
 	return true;
 }

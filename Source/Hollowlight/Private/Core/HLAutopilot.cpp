@@ -104,6 +104,16 @@ namespace HL
 			const double Ahead = (T.X - P.X) * D;
 			if (!T.Closed && Ahead > 24.0 && Ahead < 50.0 && std::fabs(T.Y - P.Y) < 4.0) { bTrigger = true; }
 		}
+		// Low things that kill and sit on the floor - a blade in its slot, a fire that never goes out - are
+		// jumped like a trap. (Tall ones - hammers, jets - are waited out by the look-ahead.)
+		for (int I = 0; I < (int)Sim.Level->Hazards.size(); ++I)
+		{
+			if (!Sim.HazardActive(I)) { continue; }
+			const FRect B = Sim.HazardBox(I);
+			if (B.Y1 - B.Y0 > 34.0 || std::fabs(B.Y1 - P.Y) > 6.0) { continue; }
+			const double Gap = D > 0 ? B.X0 - Front : Front - B.X1;
+			if (Gap > 12.0 && Gap < (Sim.Level->Hazards[I].Kind == EHazard::Saw ? 60.0 : 40.0)) { bTrigger = true; }
+		}
 		if (P.StuckTime > 0.05) { bTrigger = true; }                               // blocked (or at a ladder)
 
 		// A crate just ahead that is still falling or settling in water: let it come to rest.
