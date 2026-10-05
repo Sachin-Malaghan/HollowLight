@@ -97,6 +97,28 @@ namespace
 	};
 
 	// Level shots start at a checkpoint and let the autopilot run into something worth seeing.
+	struct FTrailerClip
+	{
+		int32 Level;        // -2 = the closing card
+		int32 Checkpoint;
+		float Seconds;
+		const TCHAR* Caption;
+		bool bLinger;       // stand still so the ghost comes
+	};
+
+	// The best of both chapters in thirty seconds. Each clip starts at a cairn just before something happens.
+	const FTrailerClip TrailerScript[] = {
+		{ 0, 4, 2.6f, TEXT("A child. A lantern."), false },
+		{ 1, 0, 2.6f, TEXT("A stray who stays."), false },
+		{ 8, 5, 3.2f, TEXT("Mountains to climb, and to fall from."), false },
+		{ 12, 2, 3.4f, TEXT("Bridges that will not hold."), false },
+		{ 13, 2, 2.8f, TEXT("Machines that never stopped."), false },
+		{ 15, 2, 3.6f, TEXT("Fire."), false },
+		{ 5, 0, 2.6f, TEXT("Things that come for the light."), true },
+		{ 16, 1, 4.2f, TEXT("And things that hunt."), false },
+		{ -2, 0, 5.0f, TEXT(""), false },
+	};
+
 	const FCaptureShot CaptureScript[] = {
 		{ 0, -1, EHLScreen::Title, false, 7.0f, TEXT("01_title") },
 		{ -1, 0, EHLScreen::LevelSelect, false, 1.2f, TEXT("02_levels") },
@@ -178,9 +200,13 @@ void AHLPlayerController::BeginPlay()
 	if (!Save) { Save = Cast<UHLSaveGame>(UGameplayStatics::CreateSaveGameObject(UHLSaveGame::StaticClass())); }
 
 	bForceTouch = FParse::Param(FCommandLine::Get(), TEXT("HLForceTouch"));
-	if (Audio) { Audio->Start(); }
+	bTrailer = FParse::Param(FCommandLine::Get(), TEXT("HLTrailer"));
+	if (Audio)
+	{
+		if (bTrailer) { Audio->BeginOffline(); } else { Audio->Start(); }
+	}
 	// Capture runs are scripted: never interrupt them with the calibration screen.
-	if (FParse::Param(FCommandLine::Get(), TEXT("HLCapture"))) { Save->bTouchCalibrated = true; }
+	if (FParse::Param(FCommandLine::Get(), TEXT("HLCapture")) || bTrailer) { Save->bTouchCalibrated = true; }
 	Game.Init(Save, Audio, IsTouchDevice() || bForceTouch);
 
 	// Nothing in the 3D world is drawn; the HUD paints everything.
@@ -198,6 +224,14 @@ void AHLPlayerController::BeginPlay()
 	bForceTouch = FParse::Param(Cmd, TEXT("HLForceTouch"));
 	int32 StartLevelArg = 0;
 	if (FParse::Value(Cmd, TEXT("HLLevel="), StartLevelArg)) { Game.StartLevel(StartLevelArg - 1); }
+	if (bTrailer)
+	{
+		Game.bTrailer = true;
+		Game.bNoSave = true;
+		Game.bHideUI = true;
+		Save->bMusic = Save->bSound = true;
+		Save->UnlockedLevels = Game.NumLevels();
+	}
 	if (FParse::Param(Cmd, TEXT("HLCapture")))
 	{
 		bCapture = true;
@@ -416,7 +450,14 @@ void AHLPlayerController::PlayerTick(float DeltaTime)
 		Menu = FHLMenuInput();
 		TickCapture(DeltaTime);
 	}
+	if (bTrailer)
+	{
+		Menu = FHLMenuInput();
+		Controls = FHLControls();
+		TickTrailer(DeltaTime);
+	}
 	Game.Tick(DeltaTime, Controls, Menu, Size.X, Size.Y);
+	if (bTrailer) { EndTrailerFrame(DeltaTime); }
 
 	if (Game.DebugPose >= 0)
 	{
@@ -432,6 +473,55 @@ void AHLPlayerController::PlayerTick(float DeltaTime)
 		Game.bQuitRequested = false;
 		UKismetSystemLibrary::QuitGame(this, this, EQuitPreference::Quit, false);
 	}
+}
+
+void AHLPlayerController::TickTrailer(float DeltaTime)
+{
+	if (bTrailerDone) { return; }
+	constexpr int32 NumClips = UE_ARRAY_COUNT(TrailerScript);
+	if (TrailerClip >= 0) { TrailerClock += DeltaTime; }
+	Game.TrailerClipTime += DeltaTime;
+	if (TrailerClip >= 0 && TrailerClock < TrailerClipEnd) { return; }
+
+	++TrailerClip;
+	if (TrailerClip >= NumClips)
+	{
+		bTrailerDone = true;
+		const FString Wav = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / TEXT("Trailer/sound.wav"));
+		if (Audio) { Audio->SaveWav(Wav); }
+		UE_LOG(LogHollowlight, Display, TEXT("HLTrailer: %d frames, %.2f s, sound %s"), TrailerFrame, TrailerClock, *Wav);
+		ConsoleCommand(TEXT("quit"));
+		return;
+	}
+	const FTrailerClip& C = TrailerScript[TrailerClip];
+	TrailerClipEnd = TrailerClock + C.Seconds;
+	Game.TrailerCaption = C.Caption;
+	Game.TrailerClipTime = 0;
+	Game.TrailerClipLen = C.Seconds;
+	if (C.Level == -2)
+	{
+		Game.StartAttract(0);
+		Game.GoTo(EHLScreen::Title);
+	}
+	else
+	{
+		Game.bAutopilotInPlay = !C.bLinger;
+		Game.StartLevel(C.Level, C.Checkpoint);
+		if (C.bLinger) { Game.Sim.Linger = HL::kGhostWait - 0.2; }
+	}
+}
+
+void AHLPlayerController::EndTrailerFrame(float DeltaTime)
+{
+	if (bTrailerDone) { return; }
+	constexpr int32 NumClips = UE_ARRAY_COUNT(TrailerScript);
+	if (TrailerClip >= 0 && TrailerClip < NumClips && TrailerScript[TrailerClip].Level == -2)
+	{
+		Game.TrailerCard = FMath::Min(1.0, Game.TrailerCard + DeltaTime / 0.7);
+	}
+	if (Audio) { Audio->RenderOffline(DeltaTime); }
+	const FString Path = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() / FString::Printf(TEXT("Trailer/f_%05d.png"), TrailerFrame++));
+	FScreenshotRequest::RequestScreenshot(Path, true, false);
 }
 
 void AHLPlayerController::TickCapture(float DeltaTime)

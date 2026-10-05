@@ -147,6 +147,11 @@ public:
 	bool bAutopilotInPlay = false;
 	bool bNoSave = false;
 	bool bHideUI = false;
+	// Trailer (-HLTrailer): a caption under each clip, then the closing card.
+	bool bTrailer = false;
+	FString TrailerCaption;
+	double TrailerClipTime = 0, TrailerClipLen = 1;
+	double TrailerCard = 0;      // 0..1 as the closing card comes up
 	int32 DebugPose = -1;      // >= 0: draw the child in this EPose (hl.Debug.Pose, capture script)
 
 	// Set by the QUIT button (desktop) or Back on the title screen (Android); the controller closes the app.

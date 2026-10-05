@@ -66,4 +66,13 @@ private:
 	bool bCaptureShotTaken = false;
 	double CaptureClock = 0;
 	FString CaptureTag;
+
+	// Trailer (-HLTrailer, run with -benchmark -fps=30): thirty seconds of clips, one PNG per frame and the
+	// sound to match in Saved/Trailer/, for Tools/Marketing/make_trailer.py to assemble.
+	void TickTrailer(float DeltaTime);
+	void EndTrailerFrame(float DeltaTime);
+	bool bTrailer = false;
+	int32 TrailerClip = -1, TrailerFrame = 0;
+	double TrailerClipEnd = 0, TrailerClock = 0;
+	bool bTrailerDone = false;
 };

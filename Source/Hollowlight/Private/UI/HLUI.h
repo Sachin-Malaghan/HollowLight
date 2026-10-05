@@ -40,6 +40,7 @@ class FHLUI
 {
 public:
 	static void Draw(FHLDraw& D, UCanvas* Canvas, FHLGame& Game, const FHLUiContext& Ctx);
+	static void DrawTrailer(FHLDraw& D, UCanvas* Canvas, FHLGame& Game, const FHLUiContext& Ctx);   // captions and closing card of the trailer
 
 	// Draws a word in the procedural serif used for the title. Letters: A-Z subset used by the game.
 	static void DrawSerifWord(FHLDraw& D, const FString& Word, double CenterX, double BaselineY, double Height, double Tracking, const FLinearColor& Color);

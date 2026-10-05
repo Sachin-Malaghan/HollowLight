@@ -1,6 +1,8 @@
 // EMBERHOME: live sound synthesis. (CLAUDE.md: Audio)
 #include "Audio/HLAudioSynth.h"
 
+#include "Misc/FileHelper.h"
+
 using namespace HL;
 
 namespace
@@ -22,8 +24,48 @@ UHLAudioSynth::UHLAudioSynth(const FObjectInitializer& ObjectInitializer)
 	bAllowSpatialization = false;
 }
 
+void UHLAudioSynth::BeginOffline()
+{
+	bOffline = true;
+	Stop();
+	if (CombBuf[0].Num() == 0)
+	{
+		int32 SampleRate = 48000;
+		Init(SampleRate);
+	}
+}
+
+void UHLAudioSynth::RenderOffline(float Seconds)
+{
+	OfflineCarry += Seconds * Rate;
+	const int32 Frames = FMath::FloorToInt(OfflineCarry);
+	OfflineCarry -= Frames;
+	if (Frames <= 0) { return; }
+	TArray<float> Buf;
+	Buf.SetNumZeroed(Frames * 2);
+	bInOfflineCall = true;
+	OnGenerateAudio(Buf.GetData(), Frames * 2);
+	bInOfflineCall = false;
+	Recorded.Reserve(Recorded.Num() + Frames * 2);
+	for (float V : Buf) { Recorded.Add((int16)FMath::RoundToInt(FMath::Clamp(V, -1.f, 1.f) * 32767.f)); }
+}
+
+bool UHLAudioSynth::SaveWav(const FString& Path) const
+{
+	TArray<uint8> Out;
+	const uint32 DataBytes = Recorded.Num() * sizeof(int16), SampleRate = (uint32)Rate;
+	auto Put32 = [&](uint32 V) { Out.Append((const uint8*)&V, 4); };
+	auto Put16 = [&](uint16 V) { Out.Append((const uint8*)&V, 2); };
+	Out.Append((const uint8*)"RIFF", 4); Put32(36 + DataBytes); Out.Append((const uint8*)"WAVEfmt ", 8);
+	Put32(16); Put16(1); Put16(2); Put32(SampleRate); Put32(SampleRate * 4); Put16(4); Put16(16);
+	Out.Append((const uint8*)"data", 4); Put32(DataBytes);
+	Out.Append((const uint8*)Recorded.GetData(), DataBytes);
+	return FFileHelper::SaveArrayToFile(Out, *Path);
+}
+
 bool UHLAudioSynth::Init(int32& SampleRate)
 {
+	if (bOffline && CombBuf[0].Num() > 0) { return true; }   // already set up for the trailer: leave the buffers alone
 	NumChannels = 2;
 	Rate = (float)SampleRate;
 	for (int32 I = 0; I < 4; ++I)
@@ -488,6 +530,11 @@ float UHLAudioSynth::Reverb(float In)
 
 int32 UHLAudioSynth::OnGenerateAudio(float* OutAudio, int32 NumSamples)
 {
+	if (bOffline && !bInOfflineCall)
+	{
+		FMemory::Memzero(OutAudio, NumSamples * sizeof(float));   // the device gets silence; RenderOffline does the work
+		return NumSamples;
+	}
 	FCommand Cmd;
 	while (Commands.Dequeue(Cmd)) { StartVoice(Cmd.Spec); }
 

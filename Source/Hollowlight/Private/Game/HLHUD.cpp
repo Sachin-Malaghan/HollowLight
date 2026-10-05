@@ -70,5 +70,11 @@ void AHLHUD::DrawHUD()
 	{
 		Game.Buttons.Reset();
 	}
+	if (Game.bTrailer)
+	{
+		FHLUiContext Ctx;
+		Ctx.Font = Font;
+		FHLUI::DrawTrailer(D, Canvas, Game, Ctx);
+	}
 	D.Flush();
 }

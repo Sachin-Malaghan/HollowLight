@@ -26,6 +26,12 @@ public:
 	virtual void OnThunder(float Strength, float Delay) override;
 	virtual void SetMix(float Rain, float Wind, bool bMusic, bool bSound, bool bMenu, float Warmth) override;
 
+	// Trailer (-HLTrailer): the synth is run by hand, exactly one frame of sound per frame of picture, and
+	// written to a WAV, so the film's sound is in step with its pictures however slowly they render.
+	void BeginOffline();
+	void RenderOffline(float Seconds);
+	bool SaveWav(const FString& Path) const;
+
 protected:
 	virtual bool Init(int32& SampleRate) override;
 	virtual int32 OnGenerateAudio(float* OutAudio, int32 NumSamples) override;
@@ -98,6 +104,11 @@ private:
 	float CombLp[4] = { 0, 0, 0, 0 };
 	TArray<float> ApBuf[2];
 	int32 ApPos[2] = { 0, 0 };
+
+	std::atomic<bool> bOffline{ false };
+	bool bInOfflineCall = false;
+	double OfflineCarry = 0;
+	TArray<int16> Recorded;
 
 	float Noise();
 	void StartVoice(const FVoiceSpec& Spec);

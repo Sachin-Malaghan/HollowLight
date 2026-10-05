@@ -20,3 +20,4 @@ Build/Android_*/
 *.keystore
 *.jks
 Config/Android/AndroidEngine.ini
+Marketing/*.mp4

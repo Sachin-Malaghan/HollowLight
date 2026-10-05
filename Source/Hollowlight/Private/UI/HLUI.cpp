@@ -910,6 +910,36 @@ void FHLUI::DrawSerifWord(FHLDraw& D, const FString& Word, double CenterX, doubl
 	}
 }
 
+void FHLUI::DrawTrailer(FHLDraw& D, UCanvas* Canvas, FHLGame& Game, const FHLUiContext& Ctx)
+{
+	FScreenCtx S{ D, Canvas, Game, Ctx, FText2{ D, Canvas, Ctx.Font }, D.ScreenW, D.ScreenH, D.ScreenH / HL::kViewHeight };
+	D.SetTransform(1, 0, 0);
+	D.SetBlend(SE_BLEND_Translucent);
+	// each clip comes up out of black and goes back to it
+	const double T = Game.TrailerClipTime, Len = Game.TrailerClipLen;
+	const double Cut = 1.0 - FMath::Min(SmoothStep(0.0, 0.3, T), 1.0 - SmoothStep(Len - 0.25, Len, T));
+	if (Cut > 0.001 && Game.TrailerCard <= 0) { D.Rect(0, 0, S.W, S.H, FLinearColor(0, 0, 0, (float)Cut)); }
+
+	if (Game.TrailerCard > 0)
+	{
+		const double A = Game.TrailerCard;
+		S.Darken(0.55 * A);
+		const double TitleH = S.H * 0.095;
+		FHLUI::DrawSerifWord(D, TEXT("EMBERHOME"), S.W * 0.5, S.H * 0.44, TitleH, TitleH * 0.42, WithAlpha(Ink, A));
+		S.Text.Draw(TEXT("bring the light home"), S.W * 0.5, S.H * 0.44 + TitleH * 0.7, S.H * 0.036, WithAlpha(Dim, A), 0.5, 420);
+		const double B = SmoothStep(0.9, 1.6, T);
+		S.Text.Draw(TEXT("COMING SOON"), S.W * 0.5, S.H * 0.72, S.H * 0.07, WithAlpha(Ember, B), 0.5, 700);
+		S.Text.Draw(TEXT("to Google Play"), S.W * 0.5, S.H * 0.81, S.H * 0.034, WithAlpha(Dim, B), 0.5, 300);
+	}
+	else if (!Game.TrailerCaption.IsEmpty())
+	{
+		const double A = SmoothStep(0.25, 0.7, T) * (1.0 - SmoothStep(Len - 0.45, Len - 0.15, T));
+		D.RectV(0, S.H * 0.74, S.W, S.H, FLinearColor(0, 0, 0, 0), FLinearColor(0, 0, 0, (float)(0.6 * A)));
+		S.Text.Draw(Game.TrailerCaption, S.W * 0.5, S.H * 0.885, S.H * 0.062, WithAlpha(Ink, A), 0.5, 160);
+	}
+	D.Flush();
+}
+
 void FHLUI::Draw(FHLDraw& D, UCanvas* Canvas, FHLGame& Game, const FHLUiContext& Ctx)
 {
 	Game.Buttons.Reset();
